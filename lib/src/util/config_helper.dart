@@ -31,7 +31,7 @@ class ConfigHelper {
 
     await prefs.setString(_sipNameKey, config.sipCallerIDName);
     await prefs.setString(_sipNumberKey, config.sipCallerIDNumber);
-    await prefs.setBool(_forceRelayCandidateKey, config.forceRelayCandidate);
+    //await prefs.setBool(_forceRelayCandidateKey, config.forceRelayCandidate);
     if (config.reconnectionTimeout != null) {
       await prefs.setInt(_reconnectionTimeoutKey, config.reconnectionTimeout!);
     }
@@ -72,7 +72,7 @@ class ConfigHelper {
         notificationToken: notificationToken,
         logLevel: LogLevel.info, // Default value
         debug: false, // Default value
-        forceRelayCandidate: forceRelayCandidate,
+        //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
       );
     } else if (sipUser != null && sipPassword != null) {
@@ -85,7 +85,7 @@ class ConfigHelper {
         notificationToken: notificationToken,
         logLevel: LogLevel.info, // Default value
         debug: false, // Default value
-        forceRelayCandidate: forceRelayCandidate,
+        //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
       );
     }

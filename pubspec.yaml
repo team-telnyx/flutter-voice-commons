@@ -10,8 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  telnyx_webrtc:
-    path: ../telnyx_webrtc
+  telnyx_webrtc: ^2.0.1
   flutter_callkit_incoming: ^2.5.3
   uuid: ^4.0.0
   firebase_messaging: ^15.0.0
