@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert'; // Added for jsonDecode
 import 'dart:io'; // Added for Platform.isIOS
 import 'package:flutter/foundation.dart'; // For debugPrint
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:telnyx_common/telnyx_common.dart';
 import 'package:telnyx_webrtc/model/push_notification.dart';
 import 'package:telnyx_webrtc/config/telnyx_config.dart';
@@ -690,6 +691,18 @@ class TelnyxVoipClient {
     debugPrint(
         'TelnyxVoipClient: Push token refreshed: ${newToken.substring(0, 10)}...');
     // Here you could implement token registration with your backend
+  }
+
+  Future<String?> getiOSPushToken() async {
+    var token;
+    if (Platform.isIOS) {
+      token = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+    } else {
+      debugPrint(
+          'TelnyxVoipClient: getiOSPushToken called on non-iOS platform, returning null');
+      return null;
+    }
+    return token;
   }
 
   /// Disposes of the client and cleans up all resources.

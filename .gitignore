@@ -30,3 +30,5 @@ doc/api/
 /.idea
 /example/android/.gradle
 /example/android/app/.cxx
+example/lib/firebase_options.dart
+example/android/app/google-services.json

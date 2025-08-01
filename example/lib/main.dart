@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:telnyx_common/telnyx_common.dart';
+
+import 'utils/app_permissions.dart';
 
 // Background message handler for Firebase push notifications
 @pragma('vm:entry-point')
@@ -14,50 +15,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await TelnyxVoiceApp.handleBackgroundPush(message);
 }
 
-// Request necessary permissions at app launch
-Future<void> _requestPermissions() async {
-  print('[Permissions] Requesting app permissions...');
-  
-  // Request microphone permission for voice calls
-  final microphoneStatus = await Permission.microphone.request();
-  print('[Permissions] Microphone permission: $microphoneStatus');
-  
-  // Request notification permission
-  final notificationStatus = await Permission.notification.request();
-  print('[Permissions] Notification permission: $notificationStatus');
-  
-  // For Firebase messaging, also request notification permissions specifically
-  try {
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-    print('[Permissions] Firebase messaging permission: ${settings.authorizationStatus}');
-  } catch (e) {
-    print('[Permissions] Error requesting Firebase permissions: $e');
-  }
-  
-  // Check if any critical permissions are denied
-  if (microphoneStatus.isDenied) {
-    print('[Permissions] Warning: Microphone permission denied - voice calls will not work');
-  }
-  
-  if (notificationStatus.isDenied) {
-    print('[Permissions] Warning: Notification permission denied - you may miss incoming calls');
-  }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Request necessary permissions early
-  await _requestPermissions();
+  await AppPermissions.requestPermissions();
 
   // Create the VoIP client with native UI and background handling enabled
   final voipClient = TelnyxVoipClient(
@@ -175,9 +138,9 @@ class _HomeScreenState extends State<HomeScreen> {
         sipPassword: _sipPasswordController.text,
         sipCallerIDName: _sipCallerIdNameController.text,
         sipCallerIDNumber: _sipCallerIdNumberController.text,
-        logLevel: LogLevel.all, debug: false,
-        // Note: In a real app, you would get the push token from Firebase/iOS
-        // pushDeviceToken: 'your_push_token_here',
+        logLevel: LogLevel.all,
+        debug: false,
+        notificationToken: await AppPermissions.getNotificationTokenForPlatform()
       );
 
       await widget.voipClient.login(config);
