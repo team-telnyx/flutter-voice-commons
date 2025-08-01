@@ -207,6 +207,8 @@ class MyApp extends StatelessWidget {
 
 ## Platform Setup
 
+Remember to ask for notification and microphone permissions in your app. The `telnyx_common` package will handle the necessary platform-specific configurations for you, but you still need to ensure the following:
+
 ### Android Setup
 
 1. **Add Firebase Configuration**
@@ -229,11 +231,29 @@ class MyApp extends StatelessWidget {
    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
    
+     <!-- Required for Notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
+   
+  
+   
    <!-- Inside <application> tag -->
    <service
        android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingBroadcastReceiver"
        android:enabled="true"
        android:exported="true" />
+   
+           
+        <!-- OngoingNotificationService for flutter_callkit_incoming -->
+        <service
+            android:name="com.hiennv.flutter_callkit_incoming.OngoingNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone" />
    ```
 
 ### iOS Setup

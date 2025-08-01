@@ -46,6 +46,10 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access to make voice calls</string>
 	
+	<!-- Push notification permissions -->
+	<key>NSUserNotificationAlertStyle</key>
+	<string>alert</string>
+	
 	<!-- Background modes for VoIP -->
 	<key>UIBackgroundModes</key>
 	<array>

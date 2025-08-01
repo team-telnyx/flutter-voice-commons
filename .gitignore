@@ -28,3 +28,5 @@ doc/api/
 .flutter-plugins
 .flutter-plugins-dependencies
 /.idea
+/example/android/.gradle
+/example/android/app/.cxx

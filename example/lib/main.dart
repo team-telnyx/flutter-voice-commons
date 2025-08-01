@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:telnyx_common/telnyx_common.dart';
 
 // Background message handler for Firebase push notifications
@@ -13,8 +14,50 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await TelnyxVoiceApp.handleBackgroundPush(message);
 }
 
+// Request necessary permissions at app launch
+Future<void> _requestPermissions() async {
+  print('[Permissions] Requesting app permissions...');
+  
+  // Request microphone permission for voice calls
+  final microphoneStatus = await Permission.microphone.request();
+  print('[Permissions] Microphone permission: $microphoneStatus');
+  
+  // Request notification permission
+  final notificationStatus = await Permission.notification.request();
+  print('[Permissions] Notification permission: $notificationStatus');
+  
+  // For Firebase messaging, also request notification permissions specifically
+  try {
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+    print('[Permissions] Firebase messaging permission: ${settings.authorizationStatus}');
+  } catch (e) {
+    print('[Permissions] Error requesting Firebase permissions: $e');
+  }
+  
+  // Check if any critical permissions are denied
+  if (microphoneStatus.isDenied) {
+    print('[Permissions] Warning: Microphone permission denied - voice calls will not work');
+  }
+  
+  if (notificationStatus.isDenied) {
+    print('[Permissions] Warning: Notification permission denied - you may miss incoming calls');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Request necessary permissions early
+  await _requestPermissions();
 
   // Create the VoIP client with native UI and background handling enabled
   final voipClient = TelnyxVoipClient(
@@ -69,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
   TelnyxConnectionState _connectionState = Disconnected();
   List<Call> _calls = [];
   Call? _activeCall;
+  bool _isLoginExpanded = true;
 
   late StreamSubscription _connectionSubscription;
   late StreamSubscription _callsSubscription;
@@ -89,6 +133,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _connectionSubscription = widget.voipClient.connectionState.listen((state) {
       setState(() {
         _connectionState = state;
+        // Auto-collapse login section when connected
+        if (state is Connected) {
+          _isLoginExpanded = false;
+        }
       });
     });
 
@@ -168,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _makeCall() async {
     try {
-      final call = await widget.voipClient.newCall(
+      await widget.voipClient.newCall(
         destination: _destinationController.text,
       );
 
@@ -219,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Telnyx Common Example'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -255,74 +303,95 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 16),
 
-            // Login Form
+            // Login Form (Expandable)
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Login Credentials',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _sipUserController,
-                      decoration: const InputDecoration(
-                        labelText: 'SIP User',
-                        border: OutlineInputBorder(),
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  title: Row(
+                    children: [
+                      const Text(
+                        'Login Credentials',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _sipPasswordController,
-                      decoration: const InputDecoration(
-                        labelText: 'SIP Password',
-                        border: OutlineInputBorder(),
-                      ),
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _sipCallerIdNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Caller ID Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _sipCallerIdNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Caller ID Number',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed:
-                                _connectionState is Disconnected
-                                    ? _login
-                                    : null,
-                            child: const Text('Login'),
-                          ),
-                        ),
+                      if (_connectionState is Connected) ...[
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed:
-                                _connectionState is Connected
-                                    ? _logout
-                                    : null,
-                            child: const Text('Logout'),
-                          ),
-                        ),
+                        const Icon(Icons.check_circle, color: Colors.green, size: 20),
                       ],
+                    ],
+                  ),
+                  subtitle: _connectionState is Connected
+                      ? const Text('Connected', style: TextStyle(color: Colors.green))
+                      : null,
+                  initiallyExpanded: _isLoginExpanded,
+                  onExpansionChanged: (expanded) {
+                    setState(() {
+                      _isLoginExpanded = expanded;
+                    });
+                  },
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _sipUserController,
+                            decoration: const InputDecoration(
+                              labelText: 'SIP User',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _sipPasswordController,
+                            decoration: const InputDecoration(
+                              labelText: 'SIP Password',
+                              border: OutlineInputBorder(),
+                            ),
+                            obscureText: true,
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _sipCallerIdNameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Caller ID Name',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _sipCallerIdNumberController,
+                            decoration: const InputDecoration(
+                              labelText: 'Caller ID Number',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed:
+                                      _connectionState is Disconnected
+                                          ? _login
+                                          : null,
+                                  child: const Text('Login'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed:
+                                      _connectionState is Connected
+                                          ? _logout
+                                          : null,
+                                  child: const Text('Logout'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -395,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 16),
 
             // Info Text
             const Card(
