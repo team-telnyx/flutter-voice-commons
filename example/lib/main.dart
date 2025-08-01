@@ -8,20 +8,20 @@ import 'package:telnyx_common/telnyx_common.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('[Background] Received push notification: ${message.data}');
-  
+
   // TelnyxVoiceApp handles all the background push processing
   await TelnyxVoiceApp.handleBackgroundPush(message);
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Create the VoIP client with native UI and background handling enabled
   final voipClient = TelnyxVoipClient(
     enableNativeUI: true,
     enableBackgroundHandling: true,
   );
-  
+
   // Initialize and run the app with TelnyxVoiceApp wrapper
   runApp(
     await TelnyxVoiceApp.initializeAndCreate(
@@ -34,7 +34,7 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   final TelnyxVoipClient voipClient;
-  
+
   const MyApp({super.key, required this.voipClient});
 
   @override
@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
 
 class HomeScreen extends StatefulWidget {
   final TelnyxVoipClient voipClient;
-  
+
   const HomeScreen({super.key, required this.voipClient});
 
   @override
@@ -65,11 +65,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final _sipCallerIdNameController = TextEditingController();
   final _sipCallerIdNumberController = TextEditingController();
   final _destinationController = TextEditingController();
-  
-  ConnectionState _connectionState = ConnectionState.disconnected;
+
+  TelnyxConnectionState _connectionState = Disconnected();
   List<Call> _calls = [];
   Call? _activeCall;
-  
+
   late StreamSubscription _connectionSubscription;
   late StreamSubscription _callsSubscription;
   late StreamSubscription _activeCallSubscription;
@@ -77,28 +77,28 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // Set default values for demo purposes
     _sipUserController.text = 'your_sip_user';
     _sipPasswordController.text = 'your_sip_password';
     _sipCallerIdNameController.text = 'Demo User';
     _sipCallerIdNumberController.text = '+1234567890';
     _destinationController.text = '+1987654321';
-    
+
     // Listen to connection state changes
     _connectionSubscription = widget.voipClient.connectionState.listen((state) {
       setState(() {
         _connectionState = state;
       });
     });
-    
+
     // Listen to calls changes
     _callsSubscription = widget.voipClient.calls.listen((calls) {
       setState(() {
         _calls = calls;
       });
     });
-    
+
     // Listen to active call changes
     _activeCallSubscription = widget.voipClient.activeCall.listen((call) {
       setState(() {
@@ -127,12 +127,13 @@ class _HomeScreenState extends State<HomeScreen> {
         sipPassword: _sipPasswordController.text,
         sipCallerIDName: _sipCallerIdNameController.text,
         sipCallerIDNumber: _sipCallerIdNumberController.text,
+        logLevel: LogLevel.all, debug: false,
         // Note: In a real app, you would get the push token from Firebase/iOS
         // pushDeviceToken: 'your_push_token_here',
       );
-      
+
       await widget.voipClient.login(config);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),
@@ -150,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _logout() async {
     try {
       await widget.voipClient.logout();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Logged out successfully!')),
@@ -170,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final call = await widget.voipClient.newCall(
         destination: _destinationController.text,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Calling ${_destinationController.text}...')),
@@ -185,31 +186,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _getConnectionStateText() {
+  String _getTelnyxConnectionStateText() {
     switch (_connectionState) {
-      case ConnectionState.disconnected:
+      case Disconnected():
         return 'Disconnected';
-      case ConnectionState.connecting:
+      case Connecting():
         return 'Connecting...';
-      case ConnectionState.connected:
+      case Connected():
         return 'Connected';
-      case ConnectionState.reconnecting:
-        return 'Reconnecting...';
-      case ConnectionState.error:
+      case ConnectionError():
         return 'Error';
     }
   }
 
-  Color _getConnectionStateColor() {
+  Color _getTelnyxConnectionStateColor() {
     switch (_connectionState) {
-      case ConnectionState.disconnected:
+      case Disconnected():
         return Colors.red;
-      case ConnectionState.connecting:
-      case ConnectionState.reconnecting:
+      case Connecting():
         return Colors.orange;
-      case ConnectionState.connected:
+      case Connected():
         return Colors.green;
-      case ConnectionState.error:
+      case ConnectionError():
         return Colors.red;
     }
   }
@@ -235,27 +233,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text(
                       'Connection Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(
                           Icons.circle,
-                          color: _getConnectionStateColor(),
+                          color: _getTelnyxConnectionStateColor(),
                           size: 16,
                         ),
                         const SizedBox(width: 8),
-                        Text(_getConnectionStateText()),
+                        Text(_getTelnyxConnectionStateText()),
                       ],
                     ),
                   ],
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Login Form
             Card(
               child: Padding(
@@ -265,7 +264,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text(
                       'Login Credentials',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -305,14 +305,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: _connectionState == ConnectionState.disconnected ? _login : null,
+                            onPressed:
+                                _connectionState is Disconnected
+                                    ? _login
+                                    : null,
                             child: const Text('Login'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: _connectionState == ConnectionState.connected ? _logout : null,
+                            onPressed:
+                                _connectionState is Connected
+                                    ? _logout
+                                    : null,
                             child: const Text('Logout'),
                           ),
                         ),
@@ -322,9 +328,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Call Controls
             Card(
               child: Padding(
@@ -334,7 +340,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text(
                       'Make a Call',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -347,16 +354,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _connectionState == ConnectionState.connected ? _makeCall : null,
+                      onPressed: _connectionState is Connected
+                          ? _makeCall
+                          : null,
                       child: const Text('Make Call'),
                     ),
                   ],
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Call State
             Card(
               child: Padding(
@@ -366,7 +375,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const Text(
                       'Call State',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text('Active Calls: ${_calls.length}'),
@@ -376,17 +386,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text('Call State: ${_activeCall!.currentState}'),
                       if (_activeCall!.callerNumber != null)
                         Text('Caller: ${_activeCall!.callerNumber}'),
-                      if (_activeCall!.destinationNumber != null)
-                        Text('Destination: ${_activeCall!.destinationNumber}'),
+                      if (_activeCall!.callerName != null)
+                        Text('Destination: ${_activeCall!.callerName}'),
                     ] else
                       const Text('No active calls'),
                   ],
                 ),
               ),
             ),
-            
+
             const Spacer(),
-            
+
             // Info Text
             const Card(
               child: Padding(
@@ -396,7 +406,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       'About This Demo',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 8),
                     Text(

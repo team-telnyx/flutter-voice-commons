@@ -216,9 +216,9 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
   bool _processingPushOnLaunch = false;
 
   // Track current connection state
-  telnyx_state.ConnectionState _currentConnectionState =
+  telnyx_state.TelnyxConnectionState _currentConnectionState =
       const telnyx_state.Disconnected();
-  StreamSubscription<telnyx_state.ConnectionState>?
+  StreamSubscription<telnyx_state.TelnyxConnectionState>?
       _connectionStateSubscription;
 
   @override

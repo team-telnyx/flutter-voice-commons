@@ -3,12 +3,12 @@
 /// This sealed class provides a type-safe way to handle different connection
 /// states in the application. Each state can carry additional information
 /// relevant to that specific state.
-sealed class ConnectionState {
-  const ConnectionState();
+sealed class TelnyxConnectionState {
+  const TelnyxConnectionState();
 }
 
 /// The client is not connected to the Telnyx backend.
-class Disconnected extends ConnectionState {
+class Disconnected extends TelnyxConnectionState {
   const Disconnected();
 
   @override
@@ -23,7 +23,7 @@ class Disconnected extends ConnectionState {
 }
 
 /// The client is attempting to connect to the Telnyx backend.
-class Connecting extends ConnectionState {
+class Connecting extends TelnyxConnectionState {
   const Connecting();
 
   @override
@@ -38,7 +38,7 @@ class Connecting extends ConnectionState {
 }
 
 /// The client is successfully connected to the Telnyx backend.
-class Connected extends ConnectionState {
+class Connected extends TelnyxConnectionState {
   const Connected();
 
   @override
@@ -53,7 +53,7 @@ class Connected extends ConnectionState {
 }
 
 /// The connection to the Telnyx backend failed or encountered an error.
-class ConnectionError extends ConnectionState {
+class ConnectionError extends TelnyxConnectionState {
   /// The error that caused the connection failure.
   final Object error;
 

@@ -13,10 +13,10 @@ import 'package:telnyx_common/src/models/connection_state.dart';
 /// connection management, and error handling.
 class SessionManager {
   final TelnyxClient _telnyxClient = TelnyxClient();
-  final StreamController<ConnectionState> _connectionStateController =
-      StreamController<ConnectionState>.broadcast();
+  final StreamController<TelnyxConnectionState> _connectionStateController =
+      StreamController<TelnyxConnectionState>.broadcast();
 
-  ConnectionState _currentState = const Disconnected();
+  TelnyxConnectionState _currentState = const Disconnected();
   bool _disposed = false;
 
   // Store caller ID information from login config
@@ -34,11 +34,11 @@ class SessionManager {
   }
 
   /// Stream of connection state changes.
-  Stream<ConnectionState> get connectionState =>
+  Stream<TelnyxConnectionState> get connectionState =>
       _connectionStateController.stream;
 
   /// Current connection state (synchronous access).
-  ConnectionState get currentState => _currentState;
+  TelnyxConnectionState get currentState => _currentState;
 
   /// Access to the underlying TelnyxClient for call operations.
   TelnyxClient get telnyxClient => _telnyxClient;
@@ -232,7 +232,7 @@ class SessionManager {
   }
 
   /// Updates the connection state and notifies listeners.
-  void _updateState(ConnectionState newState) {
+  void _updateState(TelnyxConnectionState newState) {
     if (_currentState.runtimeType != newState.runtimeType) {
       _currentState = newState;
       if (!_disposed) {

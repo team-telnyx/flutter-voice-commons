@@ -22,7 +22,7 @@ void main() {
     });
 
     test('should expose connection state stream', () {
-      expect(client.connectionState, isA<Stream<ConnectionState>>());
+      expect(client.connectionState, isA<Stream<TelnyxConnectionState>>());
     });
 
     test('should expose calls stream', () {

@@ -85,7 +85,7 @@ class TelnyxVoipClient {
   /// Emits the current status of the connection to the Telnyx backend.
   /// Values include connecting, connected, disconnected, and error states.
   /// Listen to this to show connection indicators in your UI.
-  Stream<ConnectionState> get connectionState =>
+  Stream<TelnyxConnectionState> get connectionState =>
       _sessionManager.connectionState;
 
   /// Stream of all current calls.
@@ -103,7 +103,7 @@ class TelnyxVoipClient {
   Stream<Call?> get activeCall => _callStateController.activeCall;
 
   /// Current connection state (synchronous access).
-  ConnectionState get currentConnectionState => _sessionManager.currentState;
+  TelnyxConnectionState get currentConnectionState => _sessionManager.currentState;
 
   /// Current list of calls (synchronous access).
   List<Call> get currentCalls => _callStateController.currentCalls;

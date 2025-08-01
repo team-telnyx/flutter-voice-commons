@@ -147,7 +147,7 @@ class CallStateController {
   }
 
   /// Monitors connection state for call cleanup.
-  void monitorConnectionState(Stream<ConnectionState> connectionState) {
+  void monitorConnectionState(Stream<TelnyxConnectionState> connectionState) {
     connectionState.listen((state) {
       if (state is ConnectionError || state is Disconnected) {
         _endAllCalls();
