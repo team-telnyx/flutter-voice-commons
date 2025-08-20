@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:telnyx_common/telnyx_common.dart';
 import 'package:telnyx_webrtc/model/push_notification.dart';
