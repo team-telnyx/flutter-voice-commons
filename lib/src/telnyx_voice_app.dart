@@ -48,6 +48,9 @@ class TelnyxVoiceApp extends StatefulWidget {
   /// Whether to skip web platform for background detection (default: true)
   final bool skipWebBackgroundDetection;
 
+  // Static background client instance for singleton pattern
+  static TelnyxVoipClient? _backgroundClientInstance;
+
   const TelnyxVoiceApp({
     super.key,
     required this.voipClient,
@@ -157,8 +160,11 @@ class TelnyxVoiceApp extends StatefulWidget {
       TelnyxClient.setPushMetaData(message.data,
           isAnswer: false, isDecline: false);
 
-      final backgroundClient = await _createBackgroundClient();
-      await backgroundClient.handlePushNotification(message.data);
+      // Use singleton pattern for background client to prevent multiple instances
+      TelnyxVoiceApp._backgroundClientInstance ??=
+          await _createBackgroundClient();
+      await TelnyxVoiceApp._backgroundClientInstance!
+          .handlePushNotification(message.data);
 
       if (kDebugMode) {
         debugPrint('[TelnyxVoiceApp] Background push processed successfully');
@@ -189,17 +195,23 @@ class TelnyxVoiceApp extends StatefulWidget {
     try {
       await Firebase.initializeApp();
       if (kDebugMode) {
-        debugPrint('[TelnyxVoiceApp] Firebase initialized in background isolate');
+        debugPrint(
+            '[TelnyxVoiceApp] Firebase initialized in background isolate');
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[TelnyxVoiceApp] Firebase background initialization failed: $e');
+        debugPrint(
+            '[TelnyxVoiceApp] Firebase background initialization failed: $e');
       }
     }
   }
 
   /// Creates a TelnyxVoipClient instance for background push processing.
   static Future<TelnyxVoipClient> _createBackgroundClient() async {
+    if (kDebugMode) {
+      debugPrint('[TelnyxVoiceApp] Creating background client instance');
+    }
+
     final backgroundClient = TelnyxVoipClient(
       enableNativeUI: true,
       enableBackgroundHandling: true,
@@ -209,11 +221,23 @@ class TelnyxVoiceApp extends StatefulWidget {
     );
     return backgroundClient;
   }
+
+  /// Dispose background client instance when no longer needed
+  static void _disposeBackgroundClient() {
+    if (TelnyxVoiceApp._backgroundClientInstance != null) {
+      if (kDebugMode) {
+        debugPrint('[TelnyxVoiceApp] Disposing background client instance');
+      }
+      TelnyxVoiceApp._backgroundClientInstance!.dispose();
+      TelnyxVoiceApp._backgroundClientInstance = null;
+    }
+  }
 }
 
 class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
     with WidgetsBindingObserver {
   bool _processingPushOnLaunch = false;
+  bool _isHandlingForegroundCall = false;
 
   // Track current connection state
   telnyx_state.TelnyxConnectionState _currentConnectionState =
@@ -236,6 +260,19 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
       _currentConnectionState = state;
     });
 
+    // Listen to call changes to reset flags when no active calls
+    widget.voipClient.calls.listen((calls) {
+      if (calls.isEmpty &&
+          (_isHandlingForegroundCall || BackgroundDetector.ignore)) {
+        if (kDebugMode) {
+          debugPrint(
+              '[TelnyxVoiceApp] No active calls - resetting ignore flags');
+        }
+        _isHandlingForegroundCall = false;
+        BackgroundDetector.ignore = false;
+      }
+    });
+
     // Handle initial push notification if app was launched from terminated state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForInitialPushNotification();
@@ -248,6 +285,8 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
     if (!widget.skipWebBackgroundDetection || !kIsWeb) {
       WidgetsBinding.instance.removeObserver(this);
     }
+    // Clean up background client instance
+    TelnyxVoiceApp._disposeBackgroundClient();
     super.dispose();
   }
 
@@ -268,6 +307,14 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
 
   /// Handle app lifecycle changes for auto-reconnection
   void _handleAppLifecycleStateChange(AppLifecycleState state) {
+    if (kDebugMode) {
+      debugPrint('[TelnyxVoiceApp] App lifecycle state changed to: $state');
+      debugPrint(
+          '[TelnyxVoiceApp] Background detector ignore flag: ${BackgroundDetector.ignore}');
+      debugPrint(
+          '[TelnyxVoiceApp] Handling foreground call: $_isHandlingForegroundCall');
+    }
+
     switch (state) {
       case AppLifecycleState.resumed:
         _handleAppResumed();
@@ -287,10 +334,10 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
   /// Handle app going to background - disconnect like the old implementation
   void _handleAppBackgrounded() async {
     // Check if we should ignore background detection (e.g., during active calls)
-    if (BackgroundDetector.ignore) {
+    if (BackgroundDetector.ignore || _isHandlingForegroundCall) {
       if (kDebugMode) {
         debugPrint(
-            '[TelnyxVoiceApp] Background detector ignore flag set - skipping disconnection');
+            '[TelnyxVoiceApp] Background detector ignore flag set or handling foreground call - skipping disconnection');
       }
       return;
     }
@@ -324,11 +371,11 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
     // This handles the case where the user accepted a call while the app was backgrounded
     await _checkForInitialPushNotification();
 
-    // If we're ignoring (e.g., from push call), don't auto-reconnect
-    if (BackgroundDetector.ignore) {
+    // If we're ignoring (e.g., from push call) or handling foreground call, don't auto-reconnect
+    if (BackgroundDetector.ignore || _isHandlingForegroundCall) {
       if (kDebugMode) {
         debugPrint(
-            '[TelnyxVoiceApp] Background detector ignore flag set - skipping reconnection');
+            '[TelnyxVoiceApp] Background detector ignore flag set or handling foreground call - skipping reconnection');
       }
       return;
     }
@@ -397,7 +444,8 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
         final storedPushData = await TelnyxClient.getPushData();
         if (storedPushData != null && storedPushData.isNotEmpty) {
           if (kDebugMode) {
-            debugPrint('[TelnyxVoiceApp] Found stored push data: $storedPushData');
+            debugPrint(
+                '[TelnyxVoiceApp] Found stored push data: $storedPushData');
           }
           pushData = storedPushData;
         }
@@ -406,26 +454,43 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
       // Process the push notification if found
       if (pushData != null) {
         if (kDebugMode) {
-          debugPrint('[TelnyxVoiceApp] Processing initial push notification...');
+          debugPrint(
+              '[TelnyxVoiceApp] Processing initial push notification...');
         }
 
-        // Set the ignore flag to prevent auto-reconnection during push call
+        // Set flags to prevent auto-reconnection during push call
+        _isHandlingForegroundCall = true;
         BackgroundDetector.ignore = true;
         if (kDebugMode) {
-          debugPrint('[TelnyxVoiceApp] Background detector ignore set to: true');
+          debugPrint(
+              '[TelnyxVoiceApp] Background detector ignore set to: true');
+          debugPrint(
+              '[TelnyxVoiceApp] Foreground call handling flag set to: true');
         }
+
+        // Dispose any existing background client to prevent conflicts
+        TelnyxVoiceApp._disposeBackgroundClient();
 
         // The gateway expects the original payload structure with a "metadata" key.
         final Map<String, dynamic> formattedPushData = {
           'metadata': pushData,
         };
 
-        // Handle the push notification
+        // Handle the push notification using the main client (not background client)
         await widget.voipClient.handlePushNotification(formattedPushData);
 
         if (kDebugMode) {
           debugPrint('[TelnyxVoiceApp] Initial push notification processed');
         }
+
+        // Reset the foreground call flag after a delay to allow call to establish
+        Future.delayed(const Duration(seconds: 3), () {
+          _isHandlingForegroundCall = false;
+          if (kDebugMode) {
+            debugPrint(
+                '[TelnyxVoiceApp] Foreground call handling flag reset to: false');
+          }
+        });
       } else {
         if (kDebugMode) {
           debugPrint('[TelnyxVoiceApp] No initial push data found');
@@ -436,6 +501,8 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
         debugPrint(
             '[TelnyxVoiceApp] Error processing initial push notification: $e');
       }
+      // Reset flags on error
+      _isHandlingForegroundCall = false;
     } finally {
       _processingPushOnLaunch = false;
       widget.onPushNotificationProcessingCompleted?.call();
