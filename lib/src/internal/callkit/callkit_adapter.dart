@@ -100,6 +100,17 @@ class CallKitAdapter {
     }
   }
 
+  Future<void> endAllCalls() async {
+    if (_disposed) return;
+
+    try {
+      await FlutterCallkitIncoming.endAllCalls();
+    } catch (error) {
+      // Log error but don't throw
+      print('CallKitAdapter: Error ending all calls: $error');
+    }
+  }
+
   /// Sets a call as connected in the native UI (iOS only).
   Future<void> setCallConnected(String callId) async {
     if (_disposed) return;

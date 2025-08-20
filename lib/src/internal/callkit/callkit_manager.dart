@@ -42,6 +42,7 @@ class CallKitManager {
     required void Function(String callId) onCallEnded,
     void Function(String callId, Map<String, dynamic> extra)? onPushNotificationAccepted,
   }) async {
+    debugPrint('CallKitManager: initialize() called - enableNativeUI=$enableNativeUI, already initialized=$_initialized, disposed=$_disposed');
     if (!enableNativeUI || _initialized || _disposed) return;
 
     // Store callbacks
@@ -49,6 +50,7 @@ class CallKitManager {
     _onCallDeclined = onCallDeclined;
     _onCallEnded = onCallEnded;
     _onPushNotificationAccepted = onPushNotificationAccepted;
+    debugPrint('CallKitManager: Callbacks stored - hasOnPushNotificationAccepted=${onPushNotificationAccepted != null}');
 
     // Create the adapter for UI operations (without event listening)
     _adapter = CallKitAdapter(
@@ -127,17 +129,24 @@ class CallKitManager {
     required String callerNumber,
     Map<String, dynamic> extra = const {},
   }) async {
-    if (!_canShowCallUI(callId)) return;
+    debugPrint('CallKitManager: showIncomingCall() for callId=$callId, callerName=$callerName, callerNumber=$callerNumber');
+    if (!_canShowCallUI(callId)) {
+      debugPrint('CallKitManager: Cannot show incoming call UI for $callId (check failed)');
+      return;
+    }
 
     _activeCalls.add(callId);
+    debugPrint('CallKitManager: Added $callId to active calls. Active calls count: ${_activeCalls.length}');
 
     try {
+      debugPrint('CallKitManager: Calling adapter.showIncomingCall() for $callId');
       await _adapter?.showIncomingCall(
         callId: callId,
         callerName: callerName,
         callerNumber: callerNumber,
         extra: extra,
       );
+      debugPrint('CallKitManager: Successfully showed incoming call UI for $callId');
     } catch (e) {
       debugPrint('CallKitManager: Error showing incoming call: $e');
       _activeCalls.remove(callId);
@@ -151,17 +160,24 @@ class CallKitManager {
     required String destination,
     Map<String, dynamic> extra = const {},
   }) async {
-    if (!_canShowCallUI(callId)) return;
+    debugPrint('CallKitManager: showOutgoingCall() for callId=$callId, callerName=$callerName, destination=$destination');
+    if (!_canShowCallUI(callId)) {
+      debugPrint('CallKitManager: Cannot show outgoing call UI for $callId (check failed)');
+      return;
+    }
 
     _activeCalls.add(callId);
+    debugPrint('CallKitManager: Added $callId to active calls. Active calls count: ${_activeCalls.length}');
 
     try {
+      debugPrint('CallKitManager: Calling adapter.startOutgoingCall() for $callId');
       await _adapter?.startOutgoingCall(
         callId: callId,
         destination: destination,
         callerName: callerName,
         extra: extra,
       );
+      debugPrint('CallKitManager: Successfully showed outgoing call UI for $callId');
     } catch (e) {
       debugPrint('CallKitManager: Error showing outgoing call: $e');
       _activeCalls.remove(callId);
@@ -170,10 +186,16 @@ class CallKitManager {
 
   /// Updates the call as connected in the native UI.
   Future<void> setCallConnected(String callId) async {
-    if (!_isCallActive(callId)) return;
+    debugPrint('CallKitManager: setCallConnected() for callId=$callId');
+    if (!_isCallActive(callId)) {
+      debugPrint('CallKitManager: Call $callId is not active, skipping setCallConnected');
+      return;
+    }
 
     try {
+      debugPrint('CallKitManager: Calling adapter.setCallConnected() for $callId');
       await _adapter?.setCallConnected(callId);
+      debugPrint('CallKitManager: Successfully set call connected for $callId');
     } catch (e) {
       debugPrint('CallKitManager: Error setting call connected: $e');
     }
@@ -181,10 +203,15 @@ class CallKitManager {
 
   /// Ends a call in the native UI.
   Future<void> endCall(String callId) async {
+    debugPrint('CallKitManager: endCall() for callId=$callId');
+    debugPrint('CallKitManager: Active calls before ending: ${_activeCalls.toList()}');
     try {
+      debugPrint('CallKitManager: Calling adapter.endCall() for $callId');
       await _adapter?.endCall(callId);
+      debugPrint('CallKitManager: Successfully ended call UI for $callId');
     } finally {
       _activeCalls.remove(callId);
+      debugPrint('CallKitManager: Removed $callId from active calls. Remaining active calls: ${_activeCalls.toList()}');
     }
   }
 
@@ -194,21 +221,34 @@ class CallKitManager {
     required String callerName,
     required String callerNumber,
   }) async {
-    if (!_isCallActive(callId)) return;
+    debugPrint('CallKitManager: hideIncomingCall() for callId=$callId, callerName=$callerName, callerNumber=$callerNumber');
+    if (!_isCallActive(callId)) {
+      debugPrint('CallKitManager: Call $callId is not active, skipping hideIncomingCall');
+      return;
+    }
 
     try {
+      debugPrint('CallKitManager: Calling adapter.hideIncomingCall() for $callId');
       await _adapter?.hideIncomingCall(callId, callerName, callerNumber);
+      debugPrint('CallKitManager: Successfully hid incoming call UI for $callId');
     } finally {
       _activeCalls.remove(callId);
+      debugPrint('CallKitManager: Removed $callId from active calls. Remaining active calls: ${_activeCalls.toList()}');
     }
   }
 
   /// Gets the list of active calls from CallKit.
   Future<List<Map<String, dynamic>>> getActiveCalls() async {
-    if (!enableNativeUI || !_initialized) return [];
+    debugPrint('CallKitManager: getActiveCalls() called');
+    if (!enableNativeUI || !_initialized) {
+      debugPrint('CallKitManager: Cannot get active calls (enableNativeUI=$enableNativeUI, initialized=$_initialized)');
+      return [];
+    }
 
     try {
-      return await _adapter?.getActiveCalls() ?? [];
+      final calls = await _adapter?.getActiveCalls() ?? [];
+      debugPrint('CallKitManager: Retrieved ${calls.length} active calls from adapter');
+      return calls;
     } catch (e) {
       debugPrint('CallKitManager: Error getting active calls: $e');
       return [];
@@ -217,29 +257,38 @@ class CallKitManager {
 
   /// Checks if we can show call UI for this call ID.
   bool _canShowCallUI(String callId) {
-    if (!enableNativeUI || !_initialized || _disposed) return false;
-
-    // Prevent duplicate UI for the same call
-    if (_activeCalls.contains(callId)) {
-      debugPrint('CallKitManager: Call UI already shown for $callId');
+    debugPrint('CallKitManager: _canShowCallUI() checking for callId=$callId');
+    if (!enableNativeUI || !_initialized || _disposed) {
+      debugPrint('CallKitManager: Cannot show UI - enableNativeUI=$enableNativeUI, initialized=$_initialized, disposed=$_disposed');
       return false;
     }
 
+    // Prevent duplicate UI for the same call
+    if (_activeCalls.contains(callId)) {
+      debugPrint('CallKitManager: Call UI already shown for $callId (duplicate prevention)');
+      return false;
+    }
+
+    debugPrint('CallKitManager: Can show call UI for $callId');
     return true;
   }
 
   /// Checks if a call is currently active.
   bool _isCallActive(String callId) {
-    return enableNativeUI &&
+    final isActive = enableNativeUI &&
         _initialized &&
         !_disposed &&
         _activeCalls.contains(callId);
+    debugPrint('CallKitManager: _isCallActive() for callId=$callId - result=$isActive');
+    return isActive;
   }
 
   /// Disposes of the CallKit manager and cleans up resources.
   void dispose() {
+    debugPrint('CallKitManager: dispose() called - already disposed=$_disposed');
     if (_disposed) return;
     _disposed = true;
+    debugPrint('CallKitManager: Disposing CallKitManager - active calls: ${_activeCalls.toList()}');
 
     _eventHandler?.dispose();
     _eventHandler = null;
