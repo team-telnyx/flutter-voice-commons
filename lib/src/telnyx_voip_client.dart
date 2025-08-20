@@ -1,21 +1,15 @@
 import 'dart:async';
-import 'dart:convert'; // Added for jsonDecode
-import 'dart:io'; // Added for Platform.isIOS
-import 'package:flutter/foundation.dart'; // For debugPrint
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart'; 
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:telnyx_common/telnyx_common.dart';
 import 'package:telnyx_webrtc/model/push_notification.dart';
-import 'package:telnyx_webrtc/config/telnyx_config.dart';
 import 'package:telnyx_webrtc/telnyx_client.dart';
-import 'package:telnyx_common/src/models/call.dart';
-import 'package:telnyx_common/src/models/connection_state.dart';
 import 'package:telnyx_common/src/internal/session/session_manager.dart';
 import 'package:telnyx_common/src/internal/calls/call_state_controller.dart';
 import 'package:telnyx_common/src/internal/push/push_notification_manager.dart';
-import 'package:telnyx_common/src/internal/push/push_token_provider.dart';
-import 'package:telnyx_common/src/internal/push/notification_display_service.dart';
 import 'package:telnyx_common/src/internal/callkit/callkit_manager.dart';
-import 'package:telnyx_common/utils/iterable_extensions.dart';
 import 'package:telnyx_common/src/util/config_helper.dart';
 
 /// The main public interface for the telnyx_common module.
@@ -693,6 +687,7 @@ class TelnyxVoipClient {
     // Here you could implement token registration with your backend
   }
 
+  /// Retrieves the current push token for the device.
   Future<String?> getiOSPushToken() async {
     var token;
     if (Platform.isIOS) {
@@ -703,6 +698,13 @@ class TelnyxVoipClient {
       return null;
     }
     return token;
+  }
+
+  /// Ends all active calls.
+  Future<void> endAllCalls() async {
+    if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
+
+    await _callKitManager?.endAllCalls();
   }
 
   /// Disposes of the client and cleans up all resources.

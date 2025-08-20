@@ -215,6 +215,25 @@ class CallKitManager {
     }
   }
 
+  Future<void> endAllCalls() async {
+    debugPrint('CallKitManager: endAllCalls() called');
+    if (!enableNativeUI || !_initialized || _disposed) {
+      debugPrint('CallKitManager: Cannot end all calls (enableNativeUI=$enableNativeUI, initialized=$_initialized, disposed=$_disposed)');
+      return;
+    }
+
+    try {
+      debugPrint('CallKitManager: Calling adapter.endAllCalls()');
+      await _adapter?.endAllCalls();
+      debugPrint('CallKitManager: Successfully ended all calls');
+    } catch (e) {
+      debugPrint('CallKitManager: Error ending all calls: $e');
+    } finally {
+      _activeCalls.clear();
+      debugPrint('CallKitManager: Cleared active calls after ending all calls');
+    }
+  }
+
   /// Hides the incoming call UI (Android only).
   Future<void> hideIncomingCall({
     required String callId,
