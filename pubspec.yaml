@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   telnyx_webrtc: ^2.0.1
-  flutter_callkit_incoming: ^2.5.3
+  flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
   firebase_messaging: ^15.0.0
   flutter_local_notifications: ^19.3.0

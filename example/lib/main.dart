@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:telnyx_common/telnyx_common.dart';
 
 import 'utils/app_permissions.dart';
+import 'debug_helper.dart';
 
 // Background message handler for Firebase push notifications
 @pragma('vm:entry-point')
@@ -138,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
         sipPassword: _sipPasswordController.text,
         sipCallerIDName: _sipCallerIdNameController.text,
         sipCallerIDNumber: _sipCallerIdNumberController.text,
-        logLevel: LogLevel.all,
+        logLevel: LogLevel.none,
         debug: false,
         notificationToken: await AppPermissions.getNotificationTokenForPlatform()
       );
@@ -429,6 +430,43 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 16),
 
+            // Debug Controls
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Debug Controls',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: DebugHelper.logStateFlags,
+                            child: const Text('Log State'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: DebugHelper.resetAllFlags,
+                            child: const Text('Reset Flags'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             // Info Text
             const Card(
               child: Padding(
@@ -450,7 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       '• Make outgoing calls\n'
                       '• Display call state information\n\n'
                       'Incoming calls will automatically show via CallKit (iOS) '
-                      'or ConnectionService (Android) when push notifications are configured.',
+                      'or ConnectionService (Android) when push notifications are configured.\n\n'
+                      'Debug Controls help troubleshoot state reset issues.',
                       style: TextStyle(fontSize: 12),
                     ),
                   ],

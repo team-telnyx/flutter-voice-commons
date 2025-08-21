@@ -79,9 +79,15 @@ class _BackgroundDetectorState extends State<BackgroundDetector>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (BackgroundDetector.skipWeb == true && kIsWeb) return;
+    
+    print('[BACKGROUND-DEBUG] didChangeAppLifecycleState: $state, ignore=${BackgroundDetector.ignore}');
+    
     // Only emit if NOT ignoring
     if (!BackgroundDetector.ignore) {
+      print('[BACKGROUND-DEBUG] Lifecycle event NOT ignored - calling handler for $state');
       widget.onLifecycleEvent?.call(state);
+    } else {
+      print('[BACKGROUND-DEBUG] Lifecycle event IGNORED - skipping handler for $state');
     }
   }
 
