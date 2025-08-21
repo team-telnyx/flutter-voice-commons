@@ -139,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
         sipPassword: _sipPasswordController.text,
         sipCallerIDName: _sipCallerIdNameController.text,
         sipCallerIDNumber: _sipCallerIdNumberController.text,
-        logLevel: LogLevel.all,
+        logLevel: LogLevel.none,
         debug: false,
         notificationToken: await AppPermissions.getNotificationTokenForPlatform()
       );

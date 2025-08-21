@@ -126,8 +126,9 @@ class TelnyxVoiceApp extends StatefulWidget {
     bool skipWebBackgroundDetection = true,
   }) async {
     // Initialize Firebase with auto-detection
-    await _initializeFirebase(firebaseOptions);
-
+    if (Platform.isAndroid) {
+      await _initializeFirebase(firebaseOptions);
+    }
     // Register background message handler if provided
     if (backgroundMessageHandler != null) {
       FirebaseMessaging.onBackgroundMessage(backgroundMessageHandler);
@@ -380,6 +381,20 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
       return;
     }
 
+    // iOS-specific: If push notification handling just initiated a connection,
+    // skip auto-reconnection to prevent double login
+    if (!kIsWeb && Platform.isIOS) {
+      // Check if connection state changed after push processing
+      final connectionStateAfterPush = _currentConnectionState;
+      if (connectionStateAfterPush is telnyx_state.Connecting || 
+          connectionStateAfterPush is telnyx_state.Connected) {
+        if (kDebugMode) {
+          debugPrint('[TelnyxVoiceApp] iOS: Push handling initiated connection ($connectionStateAfterPush), skipping auto-reconnection');
+        }
+        return;
+      }
+    }
+
     // Check current connection state and reconnect if needed
     final currentConnectionState = _currentConnectionState;
 
@@ -418,7 +433,16 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
 
   /// Check for initial push notification when app launches
   Future<void> _checkForInitialPushNotification() async {
-    if (_processingPushOnLaunch) return;
+    if (kDebugMode) {
+      debugPrint('TelnyxVoiceApp: _checkForInitialPushNotification called');
+    }
+    
+    if (_processingPushOnLaunch) {
+      if (kDebugMode) {
+        debugPrint('TelnyxVoiceApp: Already processing push, returning early');
+      }
+      return;
+    }
 
     _processingPushOnLaunch = true;
     widget.onPushNotificationProcessingStarted?.call();
@@ -458,6 +482,17 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
               '[TelnyxVoiceApp] Processing initial push notification...');
         }
 
+        // Check if we're already connected and handling a push - prevent duplicate processing
+        final isConnected = widget.voipClient.currentConnectionState is telnyx_state.Connected;
+        if (isConnected) {
+          if (kDebugMode) {
+            debugPrint('TelnyxVoiceApp: SKIPPING - Already connected, preventing duplicate processing');
+          }
+          // Clear the stored data since we're already handling it
+          TelnyxClient.clearPushMetaData();
+          return;
+        }
+
         // Set flags to prevent auto-reconnection during push call
         _isHandlingForegroundCall = true;
         BackgroundDetector.ignore = true;
@@ -479,8 +514,12 @@ class _TelnyxVoiceAppState extends State<TelnyxVoiceApp>
         // Handle the push notification using the main client (not background client)
         await widget.voipClient.handlePushNotification(formattedPushData);
 
+        // Clear the stored push data to prevent duplicate processing
+        TelnyxClient.clearPushMetaData();
+
         if (kDebugMode) {
           debugPrint('[TelnyxVoiceApp] Initial push notification processed');
+          debugPrint('[TelnyxVoiceApp] Cleared stored push data to prevent duplicate processing');
         }
 
         // Reset the foreground call flag after a delay to allow call to establish

@@ -473,6 +473,11 @@ class TelnyxVoipClient {
     debugPrint('[PUSH-DIAG] VoipClient: extra.keys=${extra.keys.toList()}');
     debugPrint(
         '[PUSH-DIAG] VoipClient: Platform=${Platform.isIOS ? 'iOS' : 'Android'}');
+    // Prevent duplicate processing if already connected and handling same push
+    if (_sessionManager.telnyxClient.isConnected() && _sessionManager.isHandlingPushNotification) {
+      debugPrint('VoipClient: SKIPPING - Already connected and handling push notification for call: $callId');
+      return;
+    }
     debugPrint(
         '[PUSH-DIAG] VoipClient: Current calls count=${currentCalls.length}');
     debugPrint(
@@ -535,6 +540,15 @@ class TelnyxVoipClient {
             _waitingForInvite = true;
             debugPrint(
                 'TelnyxVoipClient: iOS - Set waiting for invite flag to true for terminated state acceptance');
+            
+            // CRITICAL: Register the call with CallKitManager immediately for iOS
+            // This prevents CallKit from timing out and ending the call
+            if (Platform.isIOS && _callKitManager != null) {
+              final normalizedCallId = metadata['call_id']?.toString().toLowerCase() ?? callId.toLowerCase();
+              debugPrint('TelnyxVoipClient: iOS - Pre-registering accepted call $normalizedCallId with CallKitManager');
+              // Use setCallConnected which now also registers the call
+              await _callKitManager!.setCallConnected(normalizedCallId);
+            }
 
             debugPrint(
                 'TelnyxVoipClient: iOS - Updated stored push data with acceptance flag');

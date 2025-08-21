@@ -185,10 +185,19 @@ class CallKitManager {
   }
 
   /// Updates the call as connected in the native UI.
+  /// For push-accepted calls, this also registers the call if not already registered.
   Future<void> setCallConnected(String callId) async {
     debugPrint('CallKitManager: setCallConnected() for callId=$callId');
+    
+    // For push-accepted calls on iOS, the CallKit UI is already showing but not registered
+    // Add it to our active calls list if not already there
+    if (enableNativeUI && _initialized && !_disposed && !_activeCalls.contains(callId)) {
+      debugPrint('CallKitManager: Registering push-accepted call $callId to active calls');
+      _activeCalls.add(callId);
+    }
+    
     if (!_isCallActive(callId)) {
-      debugPrint('CallKitManager: Call $callId is not active, skipping setCallConnected');
+      debugPrint('CallKitManager: Call $callId is not active after registration attempt, skipping setCallConnected');
       return;
     }
 
@@ -205,6 +214,8 @@ class CallKitManager {
   Future<void> endCall(String callId) async {
     debugPrint('CallKitManager: endCall() for callId=$callId');
     debugPrint('CallKitManager: Active calls before ending: ${_activeCalls.toList()}');
+    // Add stack trace to debug where this is being called from
+    debugPrint('CallKitManager: endCall stack trace: ${StackTrace.current}');
     try {
       debugPrint('CallKitManager: Calling adapter.endCall() for $callId');
       await _adapter?.endCall(callId);

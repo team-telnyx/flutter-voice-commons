@@ -13,6 +13,8 @@ class ConfigHelper {
   static const _notificationTokenKey = 'notificationToken';
   static const _forceRelayCandidateKey = 'forceRelayCandidate';
   static const _reconnectionTimeoutKey = 'reconnectionTimeout';
+  static const _logLevelKey = 'logLevel';
+  static const _debugKey = 'debug';
 
   /// Saves the provided [config] to SharedPreferences.
   ///
@@ -38,6 +40,10 @@ class ConfigHelper {
     if (config.notificationToken != null) {
       await prefs.setString(_notificationTokenKey, config.notificationToken!);
     }
+    
+    // Save LogLevel and debug flag
+    await prefs.setInt(_logLevelKey, config.logLevel.index);
+    await prefs.setBool(_debugKey, config.debug);
     print('ConfigHelper: Configuration saved successfully.');
   }
 
@@ -57,6 +63,11 @@ class ConfigHelper {
     final notificationToken = prefs.getString(_notificationTokenKey);
     final forceRelayCandidate = prefs.getBool(_forceRelayCandidateKey) ?? false;
     final reconnectionTimeout = prefs.getInt(_reconnectionTimeoutKey);
+    
+    // Retrieve saved LogLevel and debug values
+    final logLevelIndex = prefs.getInt(_logLevelKey) ?? LogLevel.all.index;
+    final logLevel = LogLevel.values[logLevelIndex];
+    final debug = prefs.getBool(_debugKey) ?? false;
 
     if (sipName == null || sipNumber == null) {
       print('ConfigHelper: No stored configuration found.');
@@ -70,8 +81,8 @@ class ConfigHelper {
         sipCallerIDName: sipName,
         sipCallerIDNumber: sipNumber,
         notificationToken: notificationToken,
-        logLevel: LogLevel.info, // Default value
-        debug: false, // Default value
+        logLevel: logLevel,
+        debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
       );
@@ -83,8 +94,8 @@ class ConfigHelper {
         sipCallerIDName: sipName,
         sipCallerIDNumber: sipNumber,
         notificationToken: notificationToken,
-        logLevel: LogLevel.info, // Default value
-        debug: false, // Default value
+        logLevel: logLevel,
+        debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
       );
@@ -105,6 +116,8 @@ class ConfigHelper {
     await prefs.remove(_notificationTokenKey);
     await prefs.remove(_forceRelayCandidateKey);
     await prefs.remove(_reconnectionTimeoutKey);
+    await prefs.remove(_logLevelKey);
+    await prefs.remove(_debugKey);
     print('ConfigHelper: Cleared stored configuration.');
   }
 }

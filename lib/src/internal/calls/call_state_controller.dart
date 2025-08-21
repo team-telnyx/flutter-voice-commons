@@ -167,6 +167,12 @@ class CallStateController {
     final originalCallback = _telnyxClient.onSocketMessageReceived;
 
     _telnyxClient.onSocketMessageReceived = (TelnyxMessage message) {
+      // Log all socket messages for debugging
+      debugPrint('CallStateController: === SOCKET MESSAGE RECEIVED ===');
+      debugPrint('CallStateController: Method: ${message.socketMethod}');
+      debugPrint('CallStateController: Message: ${message.message}');
+      debugPrint('CallStateController: =====================================');
+
       // First, let the TelnyxClient handle the message internally
       // This is crucial for WebRTC setup, especially for incoming invites
       originalCallback(message);
@@ -277,6 +283,11 @@ class CallStateController {
           '[PUSH-DIAG] CallStateController: Decision=PUSH_ALREADY_ACCEPTED - Setting call to active');
       call.updateState(CallState.active);
       _sessionManager.isHandlingPushNotification = false;
+      
+      // On iOS, we need to connect the existing CallKit UI that was accepted from push
+      // The CallKit UI is already showing from the push notification, we just need to mark it as connected
+      await _callKitManager?.setCallConnected(callId);
+      debugPrint('[PUSH-DIAG] CallStateController: Connected existing CallKit UI for push-accepted call');
     } else if (isWaitingForInvite) {
       // We're waiting for this invite after accepting from terminated state - auto-accept
       debugPrint(
@@ -392,6 +403,11 @@ class CallStateController {
   /// This provides IMMEDIATE state transition to ended when call terminates.
   void _handleByeMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
+    
+    debugPrint('CallStateController: ==================== BYE MESSAGE RECEIVED ====================');
+    debugPrint('CallStateController: BYE message: ${message.message}');
+    debugPrint('CallStateController: Current active calls: ${_calls.keys.toList()}');
+    debugPrint('CallStateController: ===============================================================');
 
     // End all active calls when receiving a bye message IMMEDIATELY
     for (final call in _calls.values) {
@@ -471,7 +487,7 @@ class CallStateController {
           _sessionManager.sipCallerIDNumber ?? 'Unknown',
           'State', // Default state
           customHeaders: {},
-          debug: true, // Enable debug to get call quality metrics
+          debug: false, // Enable debug to get call quality metrics
         );
 
         // Update our reference and re-observe the updated call
@@ -502,8 +518,13 @@ class CallStateController {
 
       // Handle platform-specific call UI updates when answered
       if (call.isIncoming) {
+        // On iOS, connect the CallKit UI when answering
+        if (!kIsWeb && Platform.isIOS) {
+          await _callKitManager?.setCallConnected(call.callId);
+          debugPrint('[PUSH-DIAG] CallStateController: Connected CallKit UI for answered call on iOS');
+        }
         // On Android, we need to hide the incoming call UI and show an ongoing call notification
-        if (!kIsWeb && Platform.isAndroid) {
+        else if (!kIsWeb && Platform.isAndroid) {
           await _callKitManager?.hideIncomingCall(
             callId: call.callId,
             callerName: call.callerName ?? 'Unknown Caller',
