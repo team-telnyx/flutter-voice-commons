@@ -10,7 +10,7 @@ import 'package:telnyx_common/src/internal/session/session_manager.dart';
 import 'package:telnyx_common/src/internal/calls/call_state_controller.dart';
 import 'package:telnyx_common/src/internal/push/push_notification_manager.dart';
 import 'package:telnyx_common/src/internal/callkit/callkit_manager.dart';
-import 'package:telnyx_common/src/util/config_helper.dart';
+import 'package:telnyx_common/src/utils/config_helper.dart';
 
 /// The main public interface for the telnyx_common module.
 ///
