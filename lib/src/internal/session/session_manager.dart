@@ -64,11 +64,18 @@ class SessionManager {
   }
 
   /// Handles push notifications with the stored configuration.
-  void handlePushNotificationWithConfig(
+  void  handlePushNotificationWithConfig(
       PushMetaData pushMetaData, Config config) {
     debugPrint('SessionManager: handlePushNotificationWithConfig called');
     debugPrint('SessionManager: Push metadata: ${pushMetaData.toJson()}');
     debugPrint('SessionManager: Config type: ${config.runtimeType}');
+    
+    // Prevent duplicate processing if already connected and handling same push
+    if (_telnyxClient.isConnected() && _handlingPushNotification) {
+      debugPrint('SessionManager: SKIPPING - Already connected and handling push notification');
+      return;
+    }
+    
     _handlingPushNotification = true;
 
     try {

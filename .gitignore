@@ -32,3 +32,5 @@ doc/api/
 /example/android/app/.cxx
 example/lib/firebase_options.dart
 example/android/app/google-services.json
+/.vscode
+example/firebase.json
