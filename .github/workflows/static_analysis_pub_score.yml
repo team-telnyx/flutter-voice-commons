@@ -13,4 +13,4 @@ jobs:
       - uses: axel-op/dart-package-analyzer@v3
         with:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
-          relativePath: lib/
+          # No relativePath needed - package is at root
