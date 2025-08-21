@@ -278,20 +278,6 @@ Remember to ask for notification and microphone permissions in your app. The `te
    
    For the easiest implementation, copy the complete `AppDelegate.swift` from our [example project](https://github.com/team-telnyx/flutter-voice-commons/blob/main/example/ios/Runner/AppDelegate.swift) to your `ios/Runner/AppDelegate.swift` file. This includes all necessary VoIP push notification and CallKit handling.
 
-3. **Add Entitlements**
-   
-   Create or update `ios/Runner/Runner.entitlements`:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0">
-   <dict>
-       <key>com.apple.developer.pushkit.unrestricted-voip</key>
-       <true/>
-   </dict>
-   </plist>
-   ```
-
 ## Common Usage Patterns
 
 ### State Management Integration
