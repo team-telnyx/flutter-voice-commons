@@ -1,4 +1,4 @@
-name: telnyx_common
+name: telnyx_voice_common
 description: A high-level, state-agnostic, drop-in module for the Telnyx Flutter SDK that simplifies WebRTC integration.
 version: 0.0.1-beta
 homepage: https://telnyx.com/
