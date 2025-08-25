@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart'; // For debugPrint
-import 'package:telnyx_webrtc/model/push_notification.dart';
 
 import 'push_notification_gateway.dart';
 import '../callkit/callkit_event_handler.dart';
