@@ -73,7 +73,7 @@ Add `telnyx_common` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  telnyx_common: ^0.1.0
+  telnyx_common: ^0.0.1-beta
 ```
 
 ## Quick Start
