@@ -147,7 +147,7 @@ await TelnyxVoiceApp.initializeAndCreate(
     print('App lifecycle state: $state');
   },
   enableAutoReconnect: true,                 // Optional: Auto-reconnect (default: true)
-  skipWebBackgroundDetection: true,          // Optional: Skip web detection (default: true)
+  skipWebBackgroundDetection: true,          // Optional: Skip web background state detection (default: true)
 );
 ```
 
@@ -293,9 +293,9 @@ Future<void> _handleIncomingCall(Call call) async {
   final shouldAnswer = await _showIncomingCallDialog(call);
   
   if (shouldAnswer) {
-    await call.answer();
+    await call.acceptCall(params);
   } else {
-    await call.decline();
+    await call.endCall();
   }
 }
 
@@ -306,17 +306,14 @@ Future<bool> _showIncomingCallDialog(Call call) async {
 }
 ```
 
-### Answering and Declining Calls
+### Answering and Declining Calls Manually (If you are not using Native UI)
 
 ```dart
 // Answer an incoming call
-await call.answer();
+await call.acceptCall(params);
 
 // Decline an incoming call
-await call.decline();
-
-// End an active call
-await call.hangup();
+await call.endCall();
 ```
 
 ## Call Controls
@@ -337,7 +334,7 @@ Future<void> handleCallControls(Call call) async {
   await call.dtmf('#');
   
   // End the call
-  await call.hangup();
+  await call.endCall();
 }
 ```
 
@@ -345,23 +342,43 @@ Future<void> handleCallControls(Call call) async {
 
 ```dart
 void setupCallPropertyListeners(Call call) {
-  // Listen to mute state
-  call.isMuted.listen((muted) {
-    print('Call muted: $muted');
-    // Update UI accordingly
-  });
-  
-  // Listen to hold state
-  call.isHeld.listen((held) {
-    print('Call held: $held');
-    // Update UI accordingly
-  });
-  
   // Listen to call state changes
   call.callState.listen((state) {
     print('Call state changed: $state');
     // Handle state-specific logic
   });
+}
+
+// Where State can be CallState.ringing, CallState.active, CallState.ended, CallState.held
+enum CallState {
+  /// [newCall] The call has been created but not yet connected.
+  newCall,
+
+  /// [connecting] the call is being connected to the remote client
+  connecting,
+
+  /// [ringing] the call invitation has been extended, we are waiting for an answer.
+  ringing,
+
+  /// [active] the call is active and the two clients are fully connected.
+  active,
+
+  /// [held] the user has put the call on hold.
+  held,
+
+  /// [reconnecting] The call is reconnecting - for this state a [NetworkReason] is provided.
+  /// A call will remain in this state for the time specified within the configuration used to log in. The default value is 60 seconds,
+  /// transitioning to [dropped] if the reconnection is not successful.
+  reconnecting,
+
+  /// [dropped] The call has been dropped - for this state a [NetworkReason] is provided.
+  dropped,
+
+  /// [done] the call is finished - for this state a [CallTerminationReason] may be provided.
+  done,
+
+  /// [error] there was an issue creating the call.
+  error;
 }
 ```
 
@@ -370,12 +387,11 @@ void setupCallPropertyListeners(Call call) {
 ```dart
 void checkCallState(Call call) {
   print('Call ID: ${call.callId}');
-  print('Current State: ${call.currentState}');
-  print('Is Incoming: ${call.isIncoming}');
-  print('Caller Number: ${call.callerNumber}');
-  print('Caller Name: ${call.callerName}');
-  print('Is Muted: ${call.isMuted.value}');
-  print('Is Held: ${call.isHeld.value}');
+  print('Current State: ${call.callState}');
+  print('Caller Number: ${call.sessionCallerNumber}');
+  print('Caller Name: ${call.sessionCallerName}');
+  print('Is Held: ${call.onHold}');
+  print('Is Loudspeaker: ${call.speakerPhone}');
 }
 ```
 
