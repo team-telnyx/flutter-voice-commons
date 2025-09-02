@@ -8,7 +8,7 @@ This guide will walk you through the complete setup process for integrating Teln
 - [Android Setup](#android-setup)
 - [iOS Setup](#ios-setup)
 - [Permissions](#permissions)
-- [Firebase Configuration](#firebase-configuration)
+- [Firebase Configuration (Android Only)](#firebase-configuration-android-only)
 - [Verification](#verification)
 
 ## Installation
@@ -259,13 +259,6 @@ import AVFoundation
    - Audio, AirPlay, and Picture in Picture
    - Voice over IP
 
-### 4. Configure Firebase for iOS
-
-1. Download `GoogleService-Info.plist` from your Firebase Console
-2. Add it to your iOS project in Xcode (drag and drop into the Runner folder)
-3. Make sure "Copy items if needed" is checked
-4. Ensure it's added to the Runner target
-
 ## Permissions
 
 ### Runtime Permissions
@@ -298,9 +291,8 @@ class AppPermissions {
       // Get FCM token for Android
       return await FirebaseMessaging.instance.getToken();
     } else if (Platform.isIOS) {
-      // For iOS, the VoIP token is handled by the AppDelegate
-      // This method should return null, and the VoIP token will be
-      // provided through the platform channel
+      // For iOS, VoIP push tokens are handled natively by the AppDelegate
+      // No Firebase required for iOS
       return null;
     }
     return null;
@@ -313,28 +305,24 @@ Don't forget to add the required dependencies to your `pubspec.yaml`:
 ```yaml
 dependencies:
   permission_handler: ^11.0.1
-  firebase_messaging: ^14.6.9
+  firebase_messaging: ^14.6.9  # Only required for Android
 ```
 
-## Firebase Configuration
+## Firebase Configuration (Android Only)
+
+**Note:** Firebase is only required for Android push notifications. iOS uses native VoIP push notifications through PushKit/CallKit.
 
 ### 1. Create Firebase Project
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Create a new project or select an existing one
-3. Add your Android and iOS apps to the project
+3. Add your Android app to the project
 
-### 2. Configure Cloud Messaging
+### 2. Configure Cloud Messaging for Android
 
 1. In Firebase Console, go to Project Settings
 2. Navigate to the "Cloud Messaging" tab
 3. Note your Server Key (you'll need this for Telnyx configuration)
-
-### 3. Configure APNs (iOS only)
-
-1. In Firebase Console, go to Project Settings → Cloud Messaging
-2. Under "Apple app configuration", upload your APNs certificate or key
-3. Make sure to use the correct environment (development/production)
 
 ## Verification
 
@@ -393,7 +381,7 @@ class MyApp extends StatelessWidget {
 1. **Android Build Errors**: Make sure your `minSdkVersion` is at least 21
 2. **iOS Build Errors**: Ensure all capabilities are properly configured in Xcode
 3. **Permission Denied**: Make sure all required permissions are declared in manifests
-4. **Firebase Issues**: Verify that configuration files are properly added to both platforms
+4. **Firebase Issues (Android)**: Verify that `google-services.json` is properly added to Android app folder
 
 ## Next Steps
 
