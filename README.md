@@ -1,3 +1,4 @@
+[![Pub Version](https://img.shields.io/pub/v/telnyx_common?color=blue&logo=telnyx)](https://pub.dev/packages/telnyx_common)
 
 # Telnyx Common
 
