@@ -4,6 +4,8 @@ import 'package:telnyx_webrtc/telnyx_client.dart';
 import 'package:telnyx_webrtc/config/telnyx_config.dart';
 import 'package:telnyx_webrtc/model/telnyx_socket_error.dart';
 import 'package:telnyx_webrtc/model/push_notification.dart';
+import 'package:telnyx_webrtc/model/connection_status.dart';
+import 'package:telnyx_webrtc/model/socket_connection_metrics.dart';
 import 'package:telnyx_common/src/models/connection_state.dart';
 
 /// Internal component responsible for managing the TelnyxClient connection lifecycle.
@@ -15,8 +17,11 @@ class SessionManager {
   final TelnyxClient _telnyxClient = TelnyxClient();
   final StreamController<TelnyxConnectionState> _connectionStateController =
       StreamController<TelnyxConnectionState>.broadcast();
+  final StreamController<SocketConnectionMetrics> _connectionMetricsController =
+      StreamController<SocketConnectionMetrics>.broadcast();
 
   TelnyxConnectionState _currentState = const Disconnected();
+  SocketConnectionMetrics? _currentMetrics;
   bool _disposed = false;
 
   // Store caller ID information from login config
@@ -37,8 +42,15 @@ class SessionManager {
   Stream<TelnyxConnectionState> get connectionState =>
       _connectionStateController.stream;
 
+  /// Stream of connection metrics updates.
+  Stream<SocketConnectionMetrics> get connectionMetrics =>
+      _connectionMetricsController.stream;
+
   /// Current connection state (synchronous access).
   TelnyxConnectionState get currentState => _currentState;
+
+  /// Current connection metrics (synchronous access).
+  SocketConnectionMetrics? get currentMetrics => _currentMetrics;
 
   /// Access to the underlying TelnyxClient for call operations.
   TelnyxClient get telnyxClient => _telnyxClient;
@@ -232,10 +244,54 @@ class SessionManager {
       _updateState(ConnectionError(error));
     };
 
+    // Subscribe to connection state changes from TelnyxClient
+    _telnyxClient.onConnectionStateChanged = (ConnectionStatus status) {
+      _handleConnectionStatusChange(status);
+    };
+
+    // Subscribe to connection metrics updates from TelnyxClient
+    _telnyxClient.onConnectionMetricsUpdate = (socketMetrics) {
+      _handleConnectionMetricsUpdate(socketMetrics);
+    };
+
     // Note: The TelnyxClient doesn't expose a direct connection state stream,
     // so we rely on socket messages and errors to infer the connection state.
     // The Connected state will be set when we receive a clientReady message
     // in the CallStateController.
+  }
+
+  /// Handles connection status changes from the underlying TelnyxClient.
+  void _handleConnectionStatusChange(ConnectionStatus status) {
+    debugPrint('SessionManager: Connection status changed to $status');
+
+    switch (status) {
+      case ConnectionStatus.disconnected:
+        _updateState(const Disconnected());
+        break;
+      case ConnectionStatus.connected:
+        _updateState(const Connecting());
+        break;
+      case ConnectionStatus.clientReady:
+        _updateState(const Connected());
+        break;
+      case ConnectionStatus.reconnecting:
+        _updateState(const Connecting());
+        break;
+    }
+  }
+
+  /// Handles connection metrics updates from the underlying TelnyxClient.
+  void _handleConnectionMetricsUpdate(SocketConnectionMetrics socketMetrics) {
+    if (_disposed) return;
+
+    try {
+      _currentMetrics = socketMetrics;
+      _connectionMetricsController.add(socketMetrics);
+
+      debugPrint('SessionManager: Connection metrics updated - quality: ${socketMetrics.quality}, jitter: ${socketMetrics.jitterMs}ms');
+    } catch (e) {
+      debugPrint('SessionManager: Error processing connection metrics: $e');
+    }
   }
 
   /// Updates the connection state and notifies listeners.
@@ -262,6 +318,7 @@ class SessionManager {
 
     _telnyxClient.disconnect();
     _connectionStateController.close();
+    _connectionMetricsController.close();
 
     // Clear stored caller ID information
     _sipCallerIDName = null;
@@ -269,5 +326,8 @@ class SessionManager {
 
     // Clear stored configuration
     _storedConfig = null;
+
+    // Clear stored metrics
+    _currentMetrics = null;
   }
 }

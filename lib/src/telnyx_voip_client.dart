@@ -83,6 +83,19 @@ class TelnyxVoipClient {
   Stream<TelnyxConnectionState> get connectionState =>
       _sessionManager.connectionState;
 
+  /// Stream of connection metrics updates.
+  ///
+  /// Emits comprehensive connection quality metrics including:
+  /// - Overall quality assessment (excellent/good/fair/poor)
+  /// - Ping interval metrics (current, average, min, max)
+  /// - Jitter measurements (variation in ping intervals)
+  /// - Success rate and missed ping counts
+  ///
+  /// Use this to monitor the quality of the WebSocket connection to the
+  /// Telnyx backend. Metrics are updated periodically during an active connection.
+  Stream<SocketConnectionMetrics> get connectionMetrics =>
+      _sessionManager.connectionMetrics;
+
   /// Stream of all current calls.
   ///
   /// Emits a list of all current Call objects. Use this for applications
@@ -99,6 +112,9 @@ class TelnyxVoipClient {
 
   /// Current connection state (synchronous access).
   TelnyxConnectionState get currentConnectionState => _sessionManager.currentState;
+
+  /// Current connection metrics (synchronous access).
+  SocketConnectionMetrics? get currentConnectionMetrics => _sessionManager.currentMetrics;
 
   /// Current list of calls (synchronous access).
   List<Call> get currentCalls => _callStateController.currentCalls;

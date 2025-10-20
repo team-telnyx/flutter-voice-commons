@@ -34,6 +34,10 @@ void main() async {
     await TelnyxVoiceApp.initializeAndCreate(
       voipClient: voipClient,
       backgroundMessageHandler: _firebaseMessagingBackgroundHandler,
+      onConnectionMetricsUpdated: (metrics) {
+        // Log connection metrics for monitoring/debugging
+        print('[Metrics] Quality: ${metrics.quality}, Jitter: ${metrics.jitterMs}ms, Success Rate: ${metrics.getSuccessRate().toStringAsFixed(1)}%');
+      },
       child: MyApp(voipClient: voipClient),
     ),
   );
@@ -74,11 +78,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final _destinationController = TextEditingController();
 
   TelnyxConnectionState _connectionState = Disconnected();
+  SocketConnectionMetrics? _connectionMetrics;
   List<Call> _calls = [];
   Call? _activeCall;
   bool _isLoginExpanded = true;
 
   late StreamSubscription _connectionSubscription;
+  late StreamSubscription _connectionMetricsSubscription;
   late StreamSubscription _callsSubscription;
   late StreamSubscription _activeCallSubscription;
 
@@ -104,6 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     });
 
+    // Listen to connection metrics updates
+    _connectionMetricsSubscription = widget.voipClient.connectionMetrics.listen((metrics) {
+      setState(() {
+        _connectionMetrics = metrics;
+      });
+    });
+
     // Listen to calls changes
     _callsSubscription = widget.voipClient.calls.listen((calls) {
       setState(() {
@@ -122,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _connectionSubscription.cancel();
+    _connectionMetricsSubscription.cancel();
     _callsSubscription.cancel();
     _activeCallSubscription.cancel();
     _sipUserController.dispose();
@@ -224,6 +238,40 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  String _getConnectionQualityText(SocketConnectionQuality quality) {
+    switch (quality) {
+      case SocketConnectionQuality.excellent:
+        return 'Excellent';
+      case SocketConnectionQuality.good:
+        return 'Good';
+      case SocketConnectionQuality.fair:
+        return 'Fair';
+      case SocketConnectionQuality.poor:
+        return 'Poor';
+      case SocketConnectionQuality.calculating:
+        return 'Calculating...';
+      case SocketConnectionQuality.disconnected:
+        return 'Disconnected';
+    }
+  }
+
+  Color _getConnectionQualityColor(SocketConnectionQuality quality) {
+    switch (quality) {
+      case SocketConnectionQuality.excellent:
+        return Colors.green;
+      case SocketConnectionQuality.good:
+        return Colors.lightGreen;
+      case SocketConnectionQuality.fair:
+        return Colors.orange;
+      case SocketConnectionQuality.poor:
+        return Colors.red;
+      case SocketConnectionQuality.calculating:
+        return Colors.blue;
+      case SocketConnectionQuality.disconnected:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -260,6 +308,40 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(_getTelnyxConnectionStateText()),
                       ],
                     ),
+                    if (_connectionMetrics != null && _connectionState is Connected) ...[
+                      const SizedBox(height: 8),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.network_check,
+                            size: 16,
+                            color: _getConnectionQualityColor(_connectionMetrics!.quality),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _getConnectionQualityText(_connectionMetrics!.quality),
+                            style: TextStyle(
+                              color: _getConnectionQualityColor(_connectionMetrics!.quality),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Avg Interval: ${_connectionMetrics!.averageIntervalMs ?? "N/A"}ms | '
+                        'Jitter: ${_connectionMetrics!.jitterMs ?? "N/A"}ms',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Success Rate: ${_connectionMetrics!.getSuccessRate().toStringAsFixed(1)}% '
+                        '(${_connectionMetrics!.totalPings} pings, ${_connectionMetrics!.missedPings} missed)',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -484,9 +566,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       'This is a basic demonstration of the telnyx_common module. '
                       'It shows how to:\n'
                       '• Login with SIP credentials\n'
-                      '• Monitor connection state\n'
+                      '• Monitor connection state and quality metrics\n'
                       '• Make outgoing calls\n'
                       '• Display call state information\n\n'
+                      'Connection Quality Metrics:\n'
+                      '• Quality assessment based on 30s ping intervals\n'
+                      '• Excellent: ±100ms interval, <100ms jitter\n'
+                      '• Good: ±200ms interval, <200ms jitter\n'
+                      '• Fair: ±300ms interval, <300ms jitter\n'
+                      '• Poor: Significant deviation or high jitter\n'
+                      '• Success rate and missed ping tracking\n\n'
                       'Incoming calls will automatically show via CallKit (iOS) '
                       'or ConnectionService (Android) when push notifications are configured.\n\n'
                       'Debug Controls help troubleshoot state reset issues.',
