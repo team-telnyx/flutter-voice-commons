@@ -34,10 +34,6 @@ void main() async {
     await TelnyxVoiceApp.initializeAndCreate(
       voipClient: voipClient,
       backgroundMessageHandler: _firebaseMessagingBackgroundHandler,
-      onConnectionMetricsUpdated: (metrics) {
-        // Log connection metrics for monitoring/debugging
-        print('[Metrics] Quality: ${metrics.quality}, Jitter: ${metrics.jitterMs}ms, Success Rate: ${metrics.getSuccessRate().toStringAsFixed(1)}%');
-      },
       child: MyApp(voipClient: voipClient),
     ),
   );
