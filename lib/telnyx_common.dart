@@ -28,3 +28,4 @@ export 'package:telnyx_webrtc/utils/logging/log_level.dart';
 export 'package:telnyx_webrtc/utils/logging/custom_logger.dart';
 export 'package:telnyx_webrtc/model/region.dart';
 export 'package:telnyx_webrtc/model/socket_connection_metrics.dart';
+export 'package:telnyx_webrtc/model/audio_codec.dart';

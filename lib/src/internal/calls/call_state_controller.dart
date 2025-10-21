@@ -7,6 +7,7 @@ import 'package:telnyx_webrtc/model/telnyx_message.dart';
 import 'package:telnyx_webrtc/model/socket_method.dart';
 import 'package:telnyx_webrtc/model/call_state.dart' as telnyx_call_state;
 import 'package:telnyx_webrtc/model/verto/receive/received_message_body.dart';
+import 'package:telnyx_webrtc/model/audio_codec.dart';
 import '../../models/call.dart';
 import '../../models/call_state.dart';
 import '../../models/connection_state.dart';
@@ -88,7 +89,11 @@ class CallStateController {
   }
 
   /// Initiates a new outgoing call.
-  Future<Call> newCall(String destination, bool debug) async {
+  Future<Call> newCall(
+    String destination,
+    bool debug, {
+    List<AudioCodec>? preferredCodecs,
+  }) async {
     if (_disposed) throw StateError('CallStateController has been disposed');
 
     // Create the call object first
@@ -122,6 +127,7 @@ class CallStateController {
         destination,
         'State', // Default state
         customHeaders: {'X-RTC-CALLID': call.callId},
+        preferredCodecs: preferredCodecs,
         debug: debug,
       );
 

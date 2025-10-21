@@ -214,19 +214,69 @@ class TelnyxVoipClient {
     await _sessionManager.disconnect();
   }
 
+  /// Returns a list of audio codecs supported by WebRTC for this device.
+  ///
+  /// This method queries the native WebRTC RTP sender capabilities API to retrieve
+  /// the actual audio codecs supported by the WebRTC library. This lightweight query
+  /// uses the platform's built-in codec discovery without creating any peer connections.
+  /// The returned codec list matches exactly what WebRTC will use during actual calls.
+  ///
+  /// **Common codecs** returned include: Opus, PCMU, PCMA, G722, RED, CN, and telephone-event.
+  ///
+  /// **Usage**:
+  /// - Call this method **before** initiating a call to get the list of supported WebRTC codecs
+  /// - Use the returned list to construct your preferred codec order
+  /// - Pass your preferences to [newCall] via the `preferredCodecs` parameter
+  ///
+  /// Returns a [Future<List<AudioCodec>>] containing the audio codecs supported by the device.
+  /// Returns an empty list if codec detection fails.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Query supported codecs before making a call
+  /// final supportedCodecs = await telnyxClient.getSupportedAudioCodecs();
+  /// print('WebRTC supports: ${supportedCodecs.map((c) => c.mimeType)}');
+  ///
+  /// // Prefer Opus, then PCMU as fallback
+  /// final preferredCodecs = supportedCodecs.where(
+  ///   (c) => c.mimeType == 'audio/opus' || c.mimeType == 'audio/PCMU'
+  /// ).toList();
+  ///
+  /// // Use in call
+  /// final call = await voipClient.newCall(
+  ///   destination: 'sip:destination',
+  ///   preferredCodecs: preferredCodecs,
+  /// );
+  /// ```
+  Future<List<AudioCodec>> getSupportedAudioCodecs() async {
+    if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
+    return await _sessionManager.telnyxClient.getSupportedAudioCodecs();
+  }
+
   /// Initiates a new outgoing call.
   ///
   /// [destination] - The destination number or SIP URI to call.
+  /// [preferredCodecs] - Optional list of preferred audio codecs in order of preference.
+  ///   Use [getSupportedAudioCodecs] to query available codecs first.
+  ///   If any codec in the list is not supported by the platform or remote party,
+  ///   the system will automatically fall back to a supported codec.
   /// [debug] - Optional flag to enable call quality metrics for this call. When enabled, the onCallQualityMetrics callback will be triggered on the call object.
   ///
   /// Returns a Future that completes with the Call object once the
   /// invitation has been sent. The call's state can be monitored through
   /// the returned Call object's streams.
-  Future<Call> newCall(
-      {required String destination, bool debug = false}) async {
+  Future<Call> newCall({
+    required String destination,
+    List<AudioCodec>? preferredCodecs,
+    bool debug = false,
+  }) async {
     if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
 
-    final call = await _callStateController.newCall(destination, debug);
+    final call = await _callStateController.newCall(
+      destination,
+      debug,
+      preferredCodecs: preferredCodecs,
+    );
 
     return call;
   }
