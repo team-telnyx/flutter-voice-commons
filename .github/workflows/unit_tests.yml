@@ -12,7 +12,7 @@ jobs:
     # No working directory needed - tests run from root
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
