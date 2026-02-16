@@ -18,7 +18,7 @@ dependencies:
   uuid: ^4.0.0
   firebase_core: ^4.0.0
   firebase_messaging: ^16.0.0
-  flutter_local_notifications: ^19.3.0
+  flutter_local_notifications: ">=19.3.0 <21.0.0"
   shared_preferences: ^2.4.0
 
 dev_dependencies:
