@@ -1,3 +1,8 @@
+## [0.0.3-beta](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.0.3-beta) (2026-02-20)
+
+### Enhancement
+- Bump telnyx_webrtc dependency from ^3.4.0 to ^4.0.0 to incorporate v4 push notification improvements including missed call notifications on iOS and answered device token support.
+
 ## [0.0.2-beta](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.0.1-beta) (2025-10-21)
 
 ### Enhancement
