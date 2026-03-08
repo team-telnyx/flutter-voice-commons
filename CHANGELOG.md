@@ -5,9 +5,7 @@
 - Expose `callControlId` on the `Call` model, available when a call uses Telnyx Call Control. The ID is propagated from the SDK's Call object on answer.
 - Automatic call quality reporting is now enabled by default (handled internally by the SDK — no opt-in required). Reports are posted to voice-sdk-proxy on call end.
 - Improved TURN/STUN server configuration with UDP support for better connectivity.
-
-### Breaking
-- Minimum `telnyx_webrtc` version is now `4.x`. The 4.0.0 SDK changed push notification handling to support `MISSED CALL` notifications on iOS. If your app handles push notifications, ensure you handle `MISSED CALL` notification types appropriately.
+- Missed call push notifications (introduced in SDK 4.0.0) are handled automatically by commons — no app-level changes required.
 
 ## [0.0.2-beta](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.0.1-beta) (2025-10-21)
 
