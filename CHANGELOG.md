@@ -1,4 +1,4 @@
-## [0.0.3-beta](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.0.3-beta) (2026-03-08)
+## [0.1.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.1.0) (2026-03-08)
 
 ### Enhancement
 - Bump `telnyx_webrtc` dependency from `^3.4.0` to `^4.1.0`, incorporating all improvements from SDK versions 3.4.1 through 4.1.0.
