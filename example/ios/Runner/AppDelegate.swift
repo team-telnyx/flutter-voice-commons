@@ -102,6 +102,29 @@ import WebRTC
             print("[iOS_PUSH_DEBUG] AppDelegate - didReceiveIncomingPushWith payload: \\(payload.dictionaryPayload)")
             guard type == .voIP else { return }
             
+            // Check for missed call notification (SDK 4.0.0+)
+            // When a call is missed or cancelled, the server sends a "Missed call!" push.
+            // We must dismiss CallKit immediately to avoid showing stale call UI.
+            if let aps = payload.dictionaryPayload["aps"] as? [String: Any],
+               let alert = aps["alert"] as? String,
+               alert == "Missed call!" {
+                print("[iOS_PUSH_DEBUG] AppDelegate - Received missed call notification, dismissing CallKit")
+                
+                if let metadata = payload.dictionaryPayload["metadata"] as? [String: Any] {
+                    var callID = UUID().uuidString
+                    if let newCallId = metadata["call_id"] as? String, !newCallId.isEmpty {
+                        callID = newCallId
+                    }
+                    
+                    let data = flutter_callkit_incoming.Data(id: callID, nameCaller: "", handle: "", type: 0)
+                    data.uuid = callID
+                    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)
+                }
+                
+                completion()
+                return
+            }
+            
             if let metadata = payload.dictionaryPayload["metadata"] as? [String: Any] {
                 var callID = UUID.init().uuidString
                 if let newCallId = (metadata["call_id"] as? String),

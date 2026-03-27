@@ -58,6 +58,7 @@ class Call {
   bool _isMuted = false;
   bool _isHeld = false;
   CallQualityMetrics? _currentCallQualityMetrics;
+  String? _callControlId;
 
   /// Creates a new Call instance.
   ///
@@ -102,6 +103,14 @@ class Call {
   /// Current call quality metrics (synchronous access).
   CallQualityMetrics? get currentCallQualityMetrics =>
       _currentCallQualityMetrics;
+
+  /// The Telnyx Call Control ID, available when the call uses Call Control.
+  String? get callControlId => _callControlId;
+
+  /// Updates the Call Control ID.
+  void updateCallControlId(String? id) {
+    _callControlId = id;
+  }
 
   /// Updates the call state and notifies listeners.
   void updateState(CallState newState) {

@@ -365,6 +365,12 @@ class CallStateController {
       activeCall.updateState(CallState.active);
       activeCall.updateHoldState(false); // Ensure not held when active
 
+      // Propagate Call Control ID if available from the answer
+      final telnyxCall = _telnyxCalls[activeCall.callId];
+      if (telnyxCall?.telnyxCallControlId != null) {
+        activeCall.updateCallControlId(telnyxCall!.telnyxCallControlId);
+      }
+
       // Set CallKit as connected when call is answered
       await _callKitManager?.setCallConnected(activeCall.callId);
 
@@ -660,6 +666,11 @@ class CallStateController {
     telnyxCall.onCallQualityChange = (metrics) {
       call.updateCallQualityMetrics(metrics);
     };
+
+    // Propagate Call Control ID if available
+    if (telnyxCall.telnyxCallControlId != null) {
+      call.updateCallControlId(telnyxCall.telnyxCallControlId);
+    }
   }
 
   /// Handles state changes from TelnyxCall objects.

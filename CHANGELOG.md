@@ -1,3 +1,15 @@
+## [0.1.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.1.0) (2026-03-08)
+
+### Enhancement
+- Bump `telnyx_webrtc` dependency from `^3.4.0` to `^4.1.0`, incorporating all improvements from SDK versions 3.4.1 through 4.1.0.
+- Expose `callControlId` on the `Call` model, available when a call uses Telnyx Call Control. The ID is propagated from the SDK's Call object on answer.
+- Automatic call quality reporting is now enabled by default (handled internally by the SDK — no opt-in required). Reports are posted to voice-sdk-proxy on call end.
+- Improved TURN/STUN server configuration with UDP support for better connectivity.
+- Missed call push notifications (introduced in SDK 4.0.0) are handled at the Dart layer by commons automatically.
+
+### Breaking (iOS only)
+- **iOS AppDelegate update required.** The SDK 4.0.0+ server now sends `"Missed call!"` VoIP push notifications when calls are cancelled or missed. Your iOS `AppDelegate.swift` must handle these before they reach CallKit, otherwise stale call UI will appear. See the updated example app's `AppDelegate.swift` for the required `"Missed call!"` check in `didReceiveIncomingPushWith`. Android requires no changes.
+
 ## [0.0.2-beta](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.0.1-beta) (2025-10-21)
 
 ### Enhancement
