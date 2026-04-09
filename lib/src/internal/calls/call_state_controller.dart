@@ -785,7 +785,7 @@ class CallStateController {
     print('[BACKGROUND-DEBUG] _cleanupCall($callId) - Current calls before cleanup: ${_calls.keys.toList()}');
     final call = _calls.remove(callId);
     print('[BACKGROUND-DEBUG] Call removed. Remaining calls: ${_calls.keys.toList()}');
-    final telnyxCall = _telnyxCalls.remove(callId);
+    _telnyxCalls.remove(callId);
     final subscription = _callSubscriptions.remove(callId);
 
     // Clean up stored invite parameters and socket state tracking

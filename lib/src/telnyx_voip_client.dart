@@ -34,8 +34,11 @@ class TelnyxVoipClient {
   bool _disposed = false;
 
   // Store configuration for push notification handling
+  // ignore: unused_field
   Config? _storedConfig;
+  // ignore: unused_field
   PushMetaData? _storedPushMetaData;
+  // ignore: unused_field
   Map<String, dynamic>? _storedPushPayload;
 
   // Flag to track if we're waiting for an invite after accepting from terminated state
