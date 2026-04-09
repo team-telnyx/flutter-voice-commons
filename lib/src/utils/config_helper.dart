@@ -61,6 +61,7 @@ class ConfigHelper {
     final sipName = prefs.getString(_sipNameKey);
     final sipNumber = prefs.getString(_sipNumberKey);
     final notificationToken = prefs.getString(_notificationTokenKey);
+    // ignore: unused_local_variable
     final forceRelayCandidate = prefs.getBool(_forceRelayCandidateKey) ?? false;
     final reconnectionTimeout = prefs.getInt(_reconnectionTimeoutKey);
     
