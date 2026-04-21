@@ -3,8 +3,8 @@ description: A basic example demonstrating the use of the telnyx_common module.
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: ">=3.0.0"
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
@@ -13,7 +13,7 @@ dependencies:
     path: ../
   firebase_messaging: ^16.0.0
   firebase_core: ^4.0.0
-  permission_handler: ^11.3.1
+  permission_handler: ^12.0.1
 
 dependency_overrides:
   flutter_webrtc: ^0.14.2
