@@ -264,6 +264,9 @@ class TelnyxVoipClient {
   ///   If any codec in the list is not supported by the platform or remote party,
   ///   the system will automatically fall back to a supported codec.
   /// [debug] - Optional flag to enable call quality metrics for this call. When enabled, the onCallQualityMetrics callback will be triggered on the call object.
+  /// [clientState] - Optional application-defined string propagated to the
+  ///   Telnyx backend with the invite. Useful for correlating application
+  ///   state across push/reconnect flows. Defaults to `'State'`.
   ///
   /// Returns a Future that completes with the Call object once the
   /// invitation has been sent. The call's state can be monitored through
@@ -272,6 +275,7 @@ class TelnyxVoipClient {
     required String destination,
     List<AudioCodec>? preferredCodecs,
     bool debug = false,
+    String clientState = 'State',
   }) async {
     if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
 
@@ -279,6 +283,7 @@ class TelnyxVoipClient {
       destination,
       debug,
       preferredCodecs: preferredCodecs,
+      clientState: clientState,
     );
 
     return call;

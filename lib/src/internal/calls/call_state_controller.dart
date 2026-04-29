@@ -93,6 +93,7 @@ class CallStateController {
     String destination,
     bool debug, {
     List<AudioCodec>? preferredCodecs,
+    String clientState = 'State',
   }) async {
     if (_disposed) throw StateError('CallStateController has been disposed');
 
@@ -125,7 +126,7 @@ class CallStateController {
         _sessionManager.sipCallerIDName ?? 'User',
         _sessionManager.sipCallerIDNumber ?? 'Unknown',
         destination,
-        'State', // Default state
+        clientState,
         customHeaders: {'X-RTC-CALLID': call.callId},
         preferredCodecs: preferredCodecs,
         debug: debug,
