@@ -16,7 +16,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await TelnyxVoiceApp.handleBackgroundPush(message);
 }
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -77,12 +76,14 @@ class _HomeScreenState extends State<HomeScreen> {
   SocketConnectionMetrics? _connectionMetrics;
   List<Call> _calls = [];
   Call? _activeCall;
+  String? _clientState;
   bool _isLoginExpanded = true;
 
   late StreamSubscription _connectionSubscription;
   late StreamSubscription _connectionMetricsSubscription;
   late StreamSubscription _callsSubscription;
   late StreamSubscription _activeCallSubscription;
+  late StreamSubscription _clientStateSubscription;
 
   @override
   void initState() {
@@ -107,7 +108,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     // Listen to connection metrics updates
-    _connectionMetricsSubscription = widget.voipClient.connectionMetrics.listen((metrics) {
+    _connectionMetricsSubscription =
+        widget.voipClient.connectionMetrics.listen((metrics) {
       setState(() {
         _connectionMetrics = metrics;
       });
@@ -126,6 +128,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _activeCall = call;
       });
     });
+
+    // Listen to client state updates
+    _clientStateSubscription = widget.voipClient.clientState.listen((state) {
+      setState(() {
+        _clientState = state;
+      });
+      debugPrint('[Example] clientState observed: $state');
+    });
   }
 
   @override
@@ -134,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _connectionMetricsSubscription.cancel();
     _callsSubscription.cancel();
     _activeCallSubscription.cancel();
+    _clientStateSubscription.cancel();
     _sipUserController.dispose();
     _sipPasswordController.dispose();
     _sipCallerIdNameController.dispose();
@@ -145,14 +156,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _login() async {
     try {
       final config = CredentialConfig(
-        sipUser: _sipUserController.text,
-        sipPassword: _sipPasswordController.text,
-        sipCallerIDName: _sipCallerIdNameController.text,
-        sipCallerIDNumber: _sipCallerIdNumberController.text,
-        logLevel: LogLevel.none,
-        debug: false,
-        notificationToken: await AppPermissions.getNotificationTokenForPlatform()
-      );
+          sipUser: _sipUserController.text,
+          sipPassword: _sipPasswordController.text,
+          sipCallerIDName: _sipCallerIdNameController.text,
+          sipCallerIDNumber: _sipCallerIdNumberController.text,
+          logLevel: LogLevel.none,
+          debug: false,
+          notificationToken:
+              await AppPermissions.getNotificationTokenForPlatform());
 
       await widget.voipClient.login(config);
 
@@ -192,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await widget.voipClient.newCall(
         destination: _destinationController.text,
+        clientState: 'FlutterVoiceCommons',
       );
 
       if (mounted) {
@@ -304,7 +316,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(_getTelnyxConnectionStateText()),
                       ],
                     ),
-                    if (_connectionMetrics != null && _connectionState is Connected) ...[
+                    if (_connectionMetrics != null &&
+                        _connectionState is Connected) ...[
                       const SizedBox(height: 8),
                       const Divider(),
                       const SizedBox(height: 8),
@@ -313,13 +326,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           Icon(
                             Icons.network_check,
                             size: 16,
-                            color: _getConnectionQualityColor(_connectionMetrics!.quality),
+                            color: _getConnectionQualityColor(
+                                _connectionMetrics!.quality),
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _getConnectionQualityText(_connectionMetrics!.quality),
+                            _getConnectionQualityText(
+                                _connectionMetrics!.quality),
                             style: TextStyle(
-                              color: _getConnectionQualityColor(_connectionMetrics!.quality),
+                              color: _getConnectionQualityColor(
+                                  _connectionMetrics!.quality),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -329,13 +345,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         'Avg Interval: ${_connectionMetrics!.averageIntervalMs ?? "N/A"}ms | '
                         'Jitter: ${_connectionMetrics!.jitterMs ?? "N/A"}ms',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Success Rate: ${_connectionMetrics!.getSuccessRate().toStringAsFixed(1)}% '
                         '(${_connectionMetrics!.totalPings} pings, ${_connectionMetrics!.missedPings} missed)',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ],
                   ],
@@ -348,22 +366,26 @@ class _HomeScreenState extends State<HomeScreen> {
             // Login Form (Expandable)
             Card(
               child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
                   title: Row(
                     children: [
                       const Text(
                         'Login Credentials',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       if (_connectionState is Connected) ...[
                         const SizedBox(width: 8),
-                        const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                        const Icon(Icons.check_circle,
+                            color: Colors.green, size: 20),
                       ],
                     ],
                   ),
                   subtitle: _connectionState is Connected
-                      ? const Text('Connected', style: TextStyle(color: Colors.green))
+                      ? const Text('Connected',
+                          style: TextStyle(color: Colors.green))
                       : null,
                   initiallyExpanded: _isLoginExpanded,
                   onExpansionChanged: (expanded) {
@@ -413,20 +435,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed:
-                                      _connectionState is Disconnected
-                                          ? _login
-                                          : null,
+                                  onPressed: _connectionState is Disconnected
+                                      ? _login
+                                      : null,
                                   child: const Text('Login'),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed:
-                                      _connectionState is Connected
-                                          ? _logout
-                                          : null,
+                                  onPressed: _connectionState is Connected
+                                      ? _logout
+                                      : null,
                                   child: const Text('Logout'),
                                 ),
                               ),
@@ -465,9 +485,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _connectionState is Connected
-                          ? _makeCall
-                          : null,
+                      onPressed:
+                          _connectionState is Connected ? _makeCall : null,
                       child: const Text('Make Call'),
                     ),
                   ],
@@ -491,6 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text('Active Calls: ${_calls.length}'),
+                    Text('Latest Client State: ${_clientState ?? 'None'}'),
                     if (_activeCall != null) ...[
                       const SizedBox(height: 8),
                       Text('Active Call ID: ${_activeCall!.callId}'),

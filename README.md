@@ -437,6 +437,7 @@ TelnyxVoipClient({
 - `Stream<ConnectionState> connectionState` - Connection state changes
 - `Stream<List<Call>> calls` - All active calls
 - `Stream<Call?> activeCall` - Currently active call
+- `Stream<String?> clientState` - Latest call client state observed by the client
 
 ### TelnyxVoiceApp
 

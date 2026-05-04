@@ -113,17 +113,29 @@ class TelnyxVoipClient {
   /// that only handle a single call at a time.
   Stream<Call?> get activeCall => _callStateController.activeCall;
 
+  /// Stream of the latest client state observed for a call.
+  ///
+  /// For outgoing calls, this emits the [clientState] supplied to [newCall].
+  /// For incoming calls, this emits the client state when the underlying
+  /// Telnyx call exposes it.
+  Stream<String?> get clientState => _callStateController.clientState;
+
   /// Current connection state (synchronous access).
-  TelnyxConnectionState get currentConnectionState => _sessionManager.currentState;
+  TelnyxConnectionState get currentConnectionState =>
+      _sessionManager.currentState;
 
   /// Current connection metrics (synchronous access).
-  SocketConnectionMetrics? get currentConnectionMetrics => _sessionManager.currentMetrics;
+  SocketConnectionMetrics? get currentConnectionMetrics =>
+      _sessionManager.currentMetrics;
 
   /// Current list of calls (synchronous access).
   List<Call> get currentCalls => _callStateController.currentCalls;
 
   /// Current active call (synchronous access).
   Call? get currentActiveCall => _callStateController.currentActiveCall;
+
+  /// Current client state (synchronous access).
+  String? get currentClientState => _callStateController.currentClientState;
 
   /// Current push token (synchronous access).
   String? get currentPushToken => _pushNotificationManager?.currentToken;
@@ -548,8 +560,10 @@ class TelnyxVoipClient {
     debugPrint(
         '[PUSH-DIAG] VoipClient: Platform=${Platform.isIOS ? 'iOS' : 'Android'}');
     // Prevent duplicate processing if already connected and handling same push
-    if (_sessionManager.telnyxClient.isConnected() && _sessionManager.isHandlingPushNotification) {
-      debugPrint('VoipClient: SKIPPING - Already connected and handling push notification for call: $callId');
+    if (_sessionManager.telnyxClient.isConnected() &&
+        _sessionManager.isHandlingPushNotification) {
+      debugPrint(
+          'VoipClient: SKIPPING - Already connected and handling push notification for call: $callId');
       return;
     }
     debugPrint(
@@ -614,12 +628,15 @@ class TelnyxVoipClient {
             _waitingForInvite = true;
             debugPrint(
                 'TelnyxVoipClient: iOS - Set waiting for invite flag to true for terminated state acceptance');
-            
+
             // CRITICAL: Register the call with CallKitManager immediately for iOS
             // This prevents CallKit from timing out and ending the call
             if (Platform.isIOS && _callKitManager != null) {
-              final normalizedCallId = metadata['call_id']?.toString().toLowerCase() ?? callId.toLowerCase();
-              debugPrint('TelnyxVoipClient: iOS - Pre-registering accepted call $normalizedCallId with CallKitManager');
+              final normalizedCallId =
+                  metadata['call_id']?.toString().toLowerCase() ??
+                      callId.toLowerCase();
+              debugPrint(
+                  'TelnyxVoipClient: iOS - Pre-registering accepted call $normalizedCallId with CallKitManager');
               // Use setCallConnected which now also registers the call
               await _callKitManager!.setCallConnected(normalizedCallId);
             }

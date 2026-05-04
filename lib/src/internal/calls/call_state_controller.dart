@@ -34,6 +34,8 @@ class CallStateController {
       StreamController<List<Call>>.broadcast();
   final StreamController<Call?> _activeCallController =
       StreamController<Call?>.broadcast();
+  final StreamController<String?> _clientStateController =
+      StreamController<String?>.broadcast();
 
   final Map<String, Call> _calls = {};
   final Map<String, telnyx_call.Call> _telnyxCalls = {};
@@ -44,6 +46,7 @@ class CallStateController {
   final Map<String, DateTime> _lastSocketStateChange = {};
 
   bool _disposed = false;
+  String? _currentClientState;
 
   /// Creates a new CallStateController instance.
   CallStateController(
@@ -61,8 +64,14 @@ class CallStateController {
   /// Stream of the currently active call.
   Stream<Call?> get activeCall => _activeCallController.stream;
 
+  /// Stream of the latest client state observed for a call.
+  Stream<String?> get clientState => _clientStateController.stream;
+
   /// Current list of calls (synchronous access).
   List<Call> get currentCalls => _calls.values.toList();
+
+  /// Current client state (synchronous access).
+  String? get currentClientState => _currentClientState;
 
   /// Current active call (synchronous access).
   /// Returns the call that needs user attention (ringing, active, held, etc.)
@@ -105,13 +114,16 @@ class CallStateController {
     );
 
     // Add to our tracking
-    print('[BACKGROUND-DEBUG] Adding outgoing call ${call.callId} to _calls map. Current count before: ${_calls.length}');
+    print(
+        '[BACKGROUND-DEBUG] Adding outgoing call ${call.callId} to _calls map. Current count before: ${_calls.length}');
     _calls[call.callId] = call;
-    print('[BACKGROUND-DEBUG] Call added. New count: ${_calls.length}. Active calls: ${_calls.keys.toList()}');
+    print(
+        '[BACKGROUND-DEBUG] Call added. New count: ${_calls.length}. Active calls: ${_calls.keys.toList()}');
 
     try {
       // Set background detector to ignore so app doesn't disconnect during call
-      print('[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
+      print(
+          '[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
       BackgroundDetector.ignore = true;
 
       // Show CallKit UI for outgoing call
@@ -131,6 +143,7 @@ class CallStateController {
         preferredCodecs: preferredCodecs,
         debug: debug,
       );
+      _updateClientState(clientState);
 
       _telnyxCalls[call.callId] = telnyxCall;
       _observeTelnyxCall(call.callId, telnyxCall);
@@ -144,10 +157,12 @@ class CallStateController {
 
       // Reset background detector only if we have no active calls
       if (!_shouldKeepBackgroundIgnore()) {
-        print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call failure)');
+        print(
+            '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call failure)');
         BackgroundDetector.ignore = false;
       } else {
-        print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call failure)');
+        print(
+            '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call failure)');
       }
 
       rethrow;
@@ -207,7 +222,8 @@ class CallStateController {
       case SocketMethod.invite:
         debugPrint(
             '[PUSH-DIAG] CallStateController: ==================== INCOMING INVITE ====================');
-        debugPrint('[PUSH-DIAG] CallStateController: Invite received on socket');
+        debugPrint(
+            '[PUSH-DIAG] CallStateController: Invite received on socket');
         debugPrint(
             '[PUSH-DIAG] CallStateController: Current waiting for invite flag: ${_isWaitingForInvite?.call() ?? false}');
         _handleIncomingInvite(message.message.inviteParams);
@@ -259,6 +275,7 @@ class CallStateController {
     if (telnyxCall != null) {
       // Store the TelnyxCall for later use
       _telnyxCalls[callId] = telnyxCall;
+      _updateClientState(telnyxCall.sessionClientState);
 
       // Set up observation of the TelnyxCall
       _observeTelnyxCall(callId, telnyxCall);
@@ -288,11 +305,12 @@ class CallStateController {
           '[PUSH-DIAG] CallStateController: Decision=PUSH_ALREADY_ACCEPTED - Setting call to active');
       call.updateState(CallState.active);
       _sessionManager.isHandlingPushNotification = false;
-      
+
       // On iOS, we need to connect the existing CallKit UI that was accepted from push
       // The CallKit UI is already showing from the push notification, we just need to mark it as connected
       await _callKitManager?.setCallConnected(callId);
-      debugPrint('[PUSH-DIAG] CallStateController: Connected existing CallKit UI for push-accepted call');
+      debugPrint(
+          '[PUSH-DIAG] CallStateController: Connected existing CallKit UI for push-accepted call');
     } else if (isWaitingForInvite) {
       // We're waiting for this invite after accepting from terminated state - auto-accept
       debugPrint(
@@ -302,7 +320,8 @@ class CallStateController {
       call.updateState(CallState.ringing); // Set to ringing first
 
       // Set background detector to ignore so app doesn't disconnect during call
-      print('[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
+      print(
+          '[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
       BackgroundDetector.ignore = true;
 
       // Notify the VoipClient that we're auto-accepting and reset the waiting flag
@@ -314,7 +333,8 @@ class CallStateController {
         debugPrint(
             '[PUSH-DIAG] CallStateController: Successfully auto-accepted call $callId from terminated state');
       } catch (e) {
-        debugPrint('CallStateController: Error auto-accepting call $callId: $e');
+        debugPrint(
+            'CallStateController: Error auto-accepting call $callId: $e');
         call.updateState(CallState.error);
       }
     } else {
@@ -324,7 +344,8 @@ class CallStateController {
       call.updateState(CallState.ringing);
 
       // Set background detector to ignore so app doesn't disconnect during call
-      print('[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
+      print(
+          '[BACKGROUND-DEBUG] Setting BackgroundDetector.ignore to true - call initiated/received');
       BackgroundDetector.ignore = true;
 
       // Show CallKit UI for incoming call
@@ -335,9 +356,11 @@ class CallStateController {
         extra: {},
       );
     }
-    print('[BACKGROUND-DEBUG] Adding incoming call $callId to _calls map. Current count before: ${_calls.length}');
+    print(
+        '[BACKGROUND-DEBUG] Adding incoming call $callId to _calls map. Current count before: ${_calls.length}');
     _calls[callId] = call;
-    print('[BACKGROUND-DEBUG] Call added. New count: ${_calls.length}. Active calls: ${_calls.keys.toList()}');
+    print(
+        '[BACKGROUND-DEBUG] Call added. New count: ${_calls.length}. Active calls: ${_calls.keys.toList()}');
     _notifyCallsChanged();
 
     debugPrint(
@@ -414,11 +437,14 @@ class CallStateController {
   /// This provides IMMEDIATE state transition to ended when call terminates.
   void _handleByeMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
-    
-    debugPrint('CallStateController: ==================== BYE MESSAGE RECEIVED ====================');
+
+    debugPrint(
+        'CallStateController: ==================== BYE MESSAGE RECEIVED ====================');
     debugPrint('CallStateController: BYE message: ${message.message}');
-    debugPrint('CallStateController: Current active calls: ${_calls.keys.toList()}');
-    debugPrint('CallStateController: ===============================================================');
+    debugPrint(
+        'CallStateController: Current active calls: ${_calls.keys.toList()}');
+    debugPrint(
+        'CallStateController: ===============================================================');
 
     // End all active calls when receiving a bye message IMMEDIATELY
     for (final call in _calls.values) {
@@ -436,10 +462,12 @@ class CallStateController {
 
     // Reset background detector only if we have no active calls
     if (!_shouldKeepBackgroundIgnore()) {
-      print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites');
+      print(
+          '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites');
       BackgroundDetector.ignore = false;
     } else {
-      print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist');
+      print(
+          '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist');
     }
 
     _notifyCallsChanged();
@@ -532,7 +560,8 @@ class CallStateController {
         // On iOS, connect the CallKit UI when answering
         if (!kIsWeb && Platform.isIOS) {
           await _callKitManager?.setCallConnected(call.callId);
-          debugPrint('[PUSH-DIAG] CallStateController: Connected CallKit UI for answered call on iOS');
+          debugPrint(
+              '[PUSH-DIAG] CallStateController: Connected CallKit UI for answered call on iOS');
         }
         // On Android, we need to hide the incoming call UI and show an ongoing call notification
         else if (!kIsWeb && Platform.isAndroid) {
@@ -584,10 +613,12 @@ class CallStateController {
       // Check if we should reset background detector
       _cleanupCall(call.callId);
       if (!_shouldKeepBackgroundIgnore()) {
-        print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (hangup error)');
+        print(
+            '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (hangup error)');
         BackgroundDetector.ignore = false;
       } else {
-        print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (hangup error)');
+        print(
+            '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (hangup error)');
       }
 
       _notifyCallsChanged();
@@ -728,10 +759,12 @@ class CallStateController {
 
         // Reset background detector only if we have no active calls
         if (!_shouldKeepBackgroundIgnore()) {
-          print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call done/error)');
+          print(
+              '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call done/error)');
           BackgroundDetector.ignore = false;
         } else {
-          print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call done/error)');
+          print(
+              '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call done/error)');
         }
         break;
       case telnyx_call_state.CallState.error:
@@ -742,10 +775,12 @@ class CallStateController {
 
         // Reset background detector only if we have no active calls
         if (!_shouldKeepBackgroundIgnore()) {
-          print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call done/error)');
+          print(
+              '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites (call done/error)');
           BackgroundDetector.ignore = false;
         } else {
-          print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call done/error)');
+          print(
+              '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist (call done/error)');
         }
         break;
       case telnyx_call_state.CallState.reconnecting:
@@ -772,10 +807,12 @@ class CallStateController {
 
     // Reset background detector only if we have no active calls
     if (!_shouldKeepBackgroundIgnore()) {
-      print('[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites');
+      print(
+          '[BACKGROUND-DEBUG] Resetting BackgroundDetector.ignore to false - no active calls or pending invites');
       BackgroundDetector.ignore = false;
     } else {
-      print('[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist');
+      print(
+          '[BACKGROUND-DEBUG] Keeping BackgroundDetector.ignore = true - active calls or pending invites exist');
     }
 
     _notifyCallsChanged();
@@ -783,9 +820,11 @@ class CallStateController {
 
   /// Cleans up a specific call.
   void _cleanupCall(String callId) {
-    print('[BACKGROUND-DEBUG] _cleanupCall($callId) - Current calls before cleanup: ${_calls.keys.toList()}');
+    print(
+        '[BACKGROUND-DEBUG] _cleanupCall($callId) - Current calls before cleanup: ${_calls.keys.toList()}');
     final call = _calls.remove(callId);
-    print('[BACKGROUND-DEBUG] Call removed. Remaining calls: ${_calls.keys.toList()}');
+    print(
+        '[BACKGROUND-DEBUG] Call removed. Remaining calls: ${_calls.keys.toList()}');
     _telnyxCalls.remove(callId);
     final subscription = _callSubscriptions.remove(callId);
 
@@ -813,21 +852,25 @@ class CallStateController {
   /// Returns true if we have any non-terminated calls (ringing, active, held, etc.)
   bool _shouldKeepBackgroundIgnore() {
     // Check if we have any non-terminated calls
-    final hasActiveCalls = _calls.values.any((call) => !call.currentState.isTerminated);
-    
+    final hasActiveCalls =
+        _calls.values.any((call) => !call.currentState.isTerminated);
+
     if (hasActiveCalls) {
-      print('[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: true - found non-terminated calls');
+      print(
+          '[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: true - found non-terminated calls');
       return true;
     }
-    
+
     // Also check if we're waiting for an invite (e.g., after accepting from push)
     final isWaitingForInvite = _isWaitingForInvite?.call() ?? false;
     if (isWaitingForInvite) {
-      print('[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: true - waiting for invite after push accept');
+      print(
+          '[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: true - waiting for invite after push accept');
       return true;
     }
-    
-    print('[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: false - no active calls or pending invites');
+
+    print(
+        '[BACKGROUND-DEBUG] _shouldKeepBackgroundIgnore: false - no active calls or pending invites');
     return false;
   }
 
@@ -843,6 +886,14 @@ class CallStateController {
     _activeCallController.add(activeCall);
   }
 
+  /// Updates the latest observed client state and notifies listeners.
+  void _updateClientState(String? clientState) {
+    if (_disposed || clientState == null) return;
+
+    _currentClientState = clientState;
+    _clientStateController.add(clientState);
+  }
+
   /// Disposes of the call state controller and cleans up resources.
   void dispose() {
     if (_disposed) return;
@@ -855,5 +906,6 @@ class CallStateController {
 
     _callsController.close();
     _activeCallController.close();
+    _clientStateController.close();
   }
 }
