@@ -1,3 +1,16 @@
+## [0.2.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.2.0) (2026-05-04)
+
+### Enhancement
+- Bump `telnyx_webrtc` dependency from `^4.1.0` to `^4.2.0`, incorporating all improvements from SDK version 4.2.0.
+- Propagate `clientState` from the SDK's Call object through commons' `TelnyxVoipClient`, allowing consumers to observe the underlying client connection state.
+- Upgrade `permission_handler` to `^12.0.1` with updated SDK constraints for compatibility.
+- Add `permission_handler` macros to iOS Podfile template for proper permission declarations.
+- Upgrade Kotlin to 2.1.0 and compileSdk to 36.
+- Add OIDC publishing workflow for automated package publishing.
+- Add `.pubignore` to exclude generated iOS files from published package.
+- Resolve `dart pub publish` warnings.
+- Gitignore `local.properties` and remove from tracking.
+
 ## [0.1.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.1.0) (2026-03-08)
 
 ### Enhancement
