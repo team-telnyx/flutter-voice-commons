@@ -5,7 +5,7 @@ import '../lib/telnyx_common.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  
+
   // Mock shared preferences
   SharedPreferences.setMockInitialValues({});
   group('TelnyxVoipClient', () {
@@ -20,7 +20,8 @@ void main() {
     });
 
     test('should initialize with disconnected state', () {
-      expect(client.currentConnectionState.runtimeType.toString(), 'Disconnected');
+      expect(
+          client.currentConnectionState.runtimeType.toString(), 'Disconnected');
       expect(client.currentCalls, isEmpty);
       expect(client.currentActiveCall, isNull);
     });
@@ -38,6 +39,12 @@ void main() {
     test('should expose active call stream', () {
       expect(client.activeCall, isNotNull);
       expect(client.activeCall, isA<Stream>());
+    });
+
+    test('should expose client state stream', () {
+      expect(client.clientState, isNotNull);
+      expect(client.clientState, isA<Stream<String?>>());
+      expect(client.currentClientState, isNull);
     });
 
     test('should throw when disposed', () {
