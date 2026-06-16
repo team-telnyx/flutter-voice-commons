@@ -144,6 +144,7 @@ class SessionManager {
         reconnectionTimeout: config.reconnectionTimeout,
         region: config.region,
         fallbackOnRegionFailure: config.fallbackOnRegionFailure,
+        enableMissedCallNotifications: config.enableMissedCallNotifications,
       );
 
       _telnyxClient.connectWithCredential(telnyxConfig);
@@ -180,6 +181,7 @@ class SessionManager {
         reconnectionTimeout: config.reconnectionTimeout,
         region: config.region,
         fallbackOnRegionFailure: config.fallbackOnRegionFailure,
+        enableMissedCallNotifications: config.enableMissedCallNotifications,
       );
 
       _telnyxClient.connectWithToken(telnyxConfig);

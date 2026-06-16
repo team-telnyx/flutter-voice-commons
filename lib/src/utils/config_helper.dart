@@ -12,6 +12,8 @@ class ConfigHelper {
   static const _sipNumberKey = 'sipNumber';
   static const _notificationTokenKey = 'notificationToken';
   static const _forceRelayCandidateKey = 'forceRelayCandidate';
+  static const _enableMissedCallNotificationsKey =
+      'enableMissedCallNotifications';
   static const _reconnectionTimeoutKey = 'reconnectionTimeout';
   static const _logLevelKey = 'logLevel';
   static const _debugKey = 'debug';
@@ -34,13 +36,17 @@ class ConfigHelper {
     await prefs.setString(_sipNameKey, config.sipCallerIDName);
     await prefs.setString(_sipNumberKey, config.sipCallerIDNumber);
     //await prefs.setBool(_forceRelayCandidateKey, config.forceRelayCandidate);
+    await prefs.setBool(
+      _enableMissedCallNotificationsKey,
+      config.enableMissedCallNotifications,
+    );
     if (config.reconnectionTimeout != null) {
       await prefs.setInt(_reconnectionTimeoutKey, config.reconnectionTimeout!);
     }
     if (config.notificationToken != null) {
       await prefs.setString(_notificationTokenKey, config.notificationToken!);
     }
-    
+
     // Save LogLevel and debug flag
     await prefs.setInt(_logLevelKey, config.logLevel.index);
     await prefs.setBool(_debugKey, config.debug);
@@ -63,8 +69,10 @@ class ConfigHelper {
     final notificationToken = prefs.getString(_notificationTokenKey);
     // ignore: unused_local_variable
     final forceRelayCandidate = prefs.getBool(_forceRelayCandidateKey) ?? false;
+    final enableMissedCallNotifications =
+        prefs.getBool(_enableMissedCallNotificationsKey) ?? false;
     final reconnectionTimeout = prefs.getInt(_reconnectionTimeoutKey);
-    
+
     // Retrieve saved LogLevel and debug values
     final logLevelIndex = prefs.getInt(_logLevelKey) ?? LogLevel.all.index;
     final logLevel = LogLevel.values[logLevelIndex];
@@ -85,6 +93,7 @@ class ConfigHelper {
         logLevel: logLevel,
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
+        enableMissedCallNotifications: enableMissedCallNotifications,
         reconnectionTimeout: reconnectionTimeout,
       );
     } else if (sipUser != null && sipPassword != null) {
@@ -98,6 +107,7 @@ class ConfigHelper {
         logLevel: logLevel,
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
+        enableMissedCallNotifications: enableMissedCallNotifications,
         reconnectionTimeout: reconnectionTimeout,
       );
     }
@@ -116,6 +126,7 @@ class ConfigHelper {
     await prefs.remove(_sipNumberKey);
     await prefs.remove(_notificationTokenKey);
     await prefs.remove(_forceRelayCandidateKey);
+    await prefs.remove(_enableMissedCallNotificationsKey);
     await prefs.remove(_reconnectionTimeoutKey);
     await prefs.remove(_logLevelKey);
     await prefs.remove(_debugKey);
