@@ -166,9 +166,6 @@ class PushNotificationManager {
       // Initialize core components
       await _initializeComponents();
 
-      // Set up event handlers
-      _setupEventHandlers();
-
       // Get initial token
       await _initializeToken();
 
@@ -195,9 +192,9 @@ class PushNotificationManager {
       _displayService = _NoOpNotificationDisplayService();
     }
 
-    // Initialize event handler
+    // Create the shared event handler. The CallKit bridge owns callback
+    // registration so callbacks are not replaced by multiple components.
     _eventHandler = CallKitEventHandler();
-    await _eventHandler.initialize();
 
     // Initialize CallKit bridge that connects new architecture with existing CallKitAdapter
     _callKitBridge = CallKitAdapterBridge(
@@ -206,6 +203,11 @@ class PushNotificationManager {
       onCallAccepted: _handleCallAccepted,
       onCallDeclined: _handleCallDeclined,
       onCallEnded: _handleCallEnded,
+      onCallAcceptEvent: _handleCallAcceptEvent,
+      onCallDeclineEvent: _handleCallDeclineEvent,
+      onCallEndEvent: _handleCallEndEvent,
+      onCallTimeoutEvent: _handleCallTimeoutEvent,
+      onCallIncomingEvent: _handleCallIncomingEvent,
     );
     await _callKitBridge.initialize();
 
@@ -218,34 +220,6 @@ class PushNotificationManager {
     );
 
     debugPrint('PushNotificationManager: Components initialized');
-  }
-
-  /// Sets up event handlers for CallKit events.
-  void _setupEventHandlers() {
-    if (!_config.enableNativeUI) return;
-
-    _eventHandler.setEventCallbacks(
-      onCallAccept: (callId, extra) {
-        debugPrint('PushNotificationManager: Call accepted - $callId');
-        _handleCallAcceptEvent(callId, extra);
-      },
-      onCallDecline: (callId, extra) {
-        debugPrint('PushNotificationManager: Call declined - $callId');
-        _handleCallDeclineEvent(callId, extra);
-      },
-      onCallEnd: (callId, extra) {
-        debugPrint('PushNotificationManager: Call ended - $callId');
-        _handleCallEndEvent(callId, extra);
-      },
-      onCallTimeout: (callId, extra) {
-        debugPrint('PushNotificationManager: Call timeout - $callId');
-        _handleCallTimeoutEvent(callId, extra);
-      },
-      onCallIncoming: (callId, extra) {
-        debugPrint('PushNotificationManager: Call incoming - $callId');
-        _handleCallIncomingEvent(callId, extra);
-      },
-    );
   }
 
   /// Initializes push token and sets up refresh listener.

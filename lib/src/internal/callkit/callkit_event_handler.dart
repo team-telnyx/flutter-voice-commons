@@ -8,12 +8,17 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 typedef CallKitEventCallback = void Function(
     String callId, Map<String, dynamic> extra);
 
+typedef CallKitEventStreamProvider = Stream<CallEvent?> Function();
+
 /// Enhanced CallKit event handler that provides a unified interface for handling
 /// CallKit events across both iOS and Android platforms.
 ///
 /// This handler manages CallKit event listeners and provides callbacks for
 /// common call actions like accept, decline, end, and timeout.
 class CallKitEventHandler {
+  final CallKitEventStreamProvider _eventStreamProvider;
+
+  bool _initialized = false;
   bool _disposed = false;
   StreamSubscription? _eventSubscription;
 
@@ -25,17 +30,21 @@ class CallKitEventHandler {
   CallKitEventCallback? _onCallIncoming;
 
   /// Creates a new CallKit event handler.
-  CallKitEventHandler();
+  CallKitEventHandler({
+    CallKitEventStreamProvider? eventStreamProvider,
+  }) : _eventStreamProvider =
+            eventStreamProvider ?? (() => FlutterCallkitIncoming.onEvent);
 
   /// Initializes the CallKit event listener.
   ///
   /// This method sets up the event stream listener for CallKit events.
   /// It should be called once during initialization.
   Future<void> initialize() async {
-    if (_disposed) return;
+    if (_disposed || _initialized) return;
 
     try {
       await _setupCallKitEventListener();
+      _initialized = true;
       debugPrint(
           'CallKitEventHandler: Initialized with CallKit event listener');
     } catch (e) {
@@ -60,8 +69,10 @@ class CallKitEventHandler {
 
   /// Sets up the actual CallKit event listener.
   Future<void> _setupCallKitEventListener() async {
+    if (_eventSubscription != null) return;
+
     _eventSubscription =
-        FlutterCallkitIncoming.onEvent.listen((CallEvent? event) async {
+        _eventStreamProvider().listen((CallEvent? event) async {
       if (event == null || _disposed) return;
 
       final callId = event.body?['id']?.toString() ?? '';
@@ -255,6 +266,7 @@ class CallKitEventHandler {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _initialized = false;
 
     _eventSubscription?.cancel();
     _eventSubscription = null;

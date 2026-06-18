@@ -3,6 +3,9 @@ import 'callkit_adapter.dart';
 import '../push/notification_display_service.dart';
 import 'callkit_event_handler.dart';
 
+typedef CallKitBridgeEventCallback = void Function(
+    String callId, Map<String, dynamic> extra);
+
 /// Bridge class that extends CallKitAdapter to integrate with the new architecture.
 ///
 /// This bridge allows the existing PushNotificationGateway to work with the new
@@ -11,6 +14,11 @@ import 'callkit_event_handler.dart';
 class CallKitAdapterBridge extends CallKitAdapter {
   final NotificationDisplayService _displayService;
   final CallKitEventHandler _eventHandler;
+  final CallKitBridgeEventCallback? _onCallAcceptEvent;
+  final CallKitBridgeEventCallback? _onCallDeclineEvent;
+  final CallKitBridgeEventCallback? _onCallEndEvent;
+  final CallKitBridgeEventCallback? _onCallTimeoutEvent;
+  final CallKitBridgeEventCallback? _onCallIncomingEvent;
 
   bool _initialized = false;
 
@@ -27,8 +35,18 @@ class CallKitAdapterBridge extends CallKitAdapter {
     required super.onCallAccepted,
     required super.onCallDeclined,
     required super.onCallEnded,
+    CallKitBridgeEventCallback? onCallAcceptEvent,
+    CallKitBridgeEventCallback? onCallDeclineEvent,
+    CallKitBridgeEventCallback? onCallEndEvent,
+    CallKitBridgeEventCallback? onCallTimeoutEvent,
+    CallKitBridgeEventCallback? onCallIncomingEvent,
   })  : _displayService = displayService,
-        _eventHandler = eventHandler;
+        _eventHandler = eventHandler,
+        _onCallAcceptEvent = onCallAcceptEvent,
+        _onCallDeclineEvent = onCallDeclineEvent,
+        _onCallEndEvent = onCallEndEvent,
+        _onCallTimeoutEvent = onCallTimeoutEvent,
+        _onCallIncomingEvent = onCallIncomingEvent;
 
   @override
   Future<void> initialize() async {
@@ -40,19 +58,65 @@ class CallKitAdapterBridge extends CallKitAdapter {
 
     // Set up our event handler to coordinate with the new architecture
     _eventHandler.setEventCallbacks(
-      onCallAccept: (callId, extra) => onCallAccepted(callId),
-      onCallDecline: (callId, extra) => onCallDeclined(callId),
-      onCallEnd: (callId, extra) => onCallEnded(callId),
-      onCallTimeout: (callId, extra) =>
-          onCallDeclined(callId), // Treat timeout as decline
-      onCallIncoming: (callId, extra) {
-        // Handle incoming call event if needed
-        print('CallKitAdapterBridge: Incoming call event for $callId');
-      },
+      onCallAccept: _handleCallAcceptEvent,
+      onCallDecline: _handleCallDeclineEvent,
+      onCallEnd: _handleCallEndEvent,
+      onCallTimeout: _handleCallTimeoutEvent,
+      onCallIncoming: _handleCallIncomingEvent,
     );
 
     _initialized = true;
     print('CallKitAdapterBridge: Initialized successfully');
+  }
+
+  void _handleCallAcceptEvent(String callId, Map<String, dynamic> extra) {
+    final callback = _onCallAcceptEvent;
+    if (callback != null) {
+      callback(callId, extra);
+      return;
+    }
+
+    onCallAccepted(callId);
+  }
+
+  void _handleCallDeclineEvent(String callId, Map<String, dynamic> extra) {
+    final callback = _onCallDeclineEvent;
+    if (callback != null) {
+      callback(callId, extra);
+      return;
+    }
+
+    onCallDeclined(callId);
+  }
+
+  void _handleCallEndEvent(String callId, Map<String, dynamic> extra) {
+    final callback = _onCallEndEvent;
+    if (callback != null) {
+      callback(callId, extra);
+      return;
+    }
+
+    onCallEnded(callId);
+  }
+
+  void _handleCallTimeoutEvent(String callId, Map<String, dynamic> extra) {
+    final callback = _onCallTimeoutEvent;
+    if (callback != null) {
+      callback(callId, extra);
+      return;
+    }
+
+    onCallDeclined(callId);
+  }
+
+  void _handleCallIncomingEvent(String callId, Map<String, dynamic> extra) {
+    final callback = _onCallIncomingEvent;
+    if (callback != null) {
+      callback(callId, extra);
+      return;
+    }
+
+    print('CallKitAdapterBridge: Incoming call event for $callId');
   }
 
   @override
