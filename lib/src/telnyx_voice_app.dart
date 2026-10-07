@@ -202,7 +202,7 @@ class TelnyxVoiceApp extends StatefulWidget {
   static Future<void> _initializeFirebaseInIsolate({
     FirebaseOptions? options,
   }) async {
-    if (Firebase.apps.isNotEmpty) {
+    if (Firebase.apps.any((app) => app.name == Firebase.app().name)) {
       print('[TelnyxVoiceApp] Firebase already initialized in isolate, skipping');
       return;
     }
