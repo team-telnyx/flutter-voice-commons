@@ -151,13 +151,19 @@ class TelnyxVoiceApp extends StatefulWidget {
   }
 
   /// Handles background push notifications in the background isolate.
-  static Future<void> handleBackgroundPush(RemoteMessage message) async {
-    if (kDebugMode) {
-      debugPrint('[TelnyxVoiceApp] Background push received: ${message.data}');
-    }
+  ///
+  /// [firebaseOptions] should be provided when the app uses release builds
+  /// on Android, as the background isolate cannot access google-services
+  /// resources automatically. Pass [DefaultFirebaseOptions.currentPlatform]
+  /// from the app's generated firebase_options.dart.
+  static Future<void> handleBackgroundPush(
+    RemoteMessage message, {
+    FirebaseOptions? firebaseOptions,
+  }) async {
+    print('[TelnyxVoiceApp] Background push received: ${message.data}');
 
     try {
-      await _initializeFirebaseInIsolate();
+      await _initializeFirebaseInIsolate(options: firebaseOptions);
       TelnyxClient.setPushMetaData(message.data,
           isAnswer: false, isDecline: false);
 
@@ -167,13 +173,10 @@ class TelnyxVoiceApp extends StatefulWidget {
       await TelnyxVoiceApp._backgroundClientInstance!
           .handlePushNotification(message.data);
 
-      if (kDebugMode) {
-        debugPrint('[TelnyxVoiceApp] Background push processed successfully');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[TelnyxVoiceApp] Error processing background push: $e');
-      }
+      print('[TelnyxVoiceApp] Background push processed successfully');
+    } catch (e, st) {
+      print('[TelnyxVoiceApp] Error processing background push: $e');
+      print('[TelnyxVoiceApp] Stack: $st');
     }
   }
 
@@ -192,18 +195,24 @@ class TelnyxVoiceApp extends StatefulWidget {
   }
 
   /// Initializes Firebase in the background isolate.
-  static Future<void> _initializeFirebaseInIsolate() async {
+  ///
+  /// In release builds, the background isolate cannot access google-services
+  /// resources automatically, so [options] should be passed explicitly.
+  /// This method is idempotent — safe to call multiple times.
+  static Future<void> _initializeFirebaseInIsolate({
+    FirebaseOptions? options,
+  }) async {
+    if (Firebase.apps.isNotEmpty) {
+      print('[TelnyxVoiceApp] Firebase already initialized in isolate, skipping');
+      return;
+    }
     try {
-      await Firebase.initializeApp();
-      if (kDebugMode) {
-        debugPrint(
-            '[TelnyxVoiceApp] Firebase initialized in background isolate');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-            '[TelnyxVoiceApp] Firebase background initialization failed: $e');
-      }
+      await Firebase.initializeApp(options: options);
+      print('[TelnyxVoiceApp] Firebase initialized in background isolate');
+    } catch (e, st) {
+      print('[TelnyxVoiceApp] Firebase background initialization failed: $e');
+      print('[TelnyxVoiceApp] Stack: $st');
+      rethrow;
     }
   }
 
