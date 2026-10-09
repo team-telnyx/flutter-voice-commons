@@ -374,10 +374,21 @@ class CallStateController {
   /// Handles answer messages from the socket.
   /// This provides IMMEDIATE state transition to active when remote party answers.
   ///
-  /// Filters by `dialogParams.callID` when available so concurrent or newly
-  /// created calls are not affected by stale `initiating`/`ringing` entries
-  /// left behind from a previous call. Falls back to the legacy
-  /// "first matching state" lookup if the callID is missing (defensive).
+  /// Filters by `inviteParams.callID` (with `dialogParams.callID` as fallback)
+  /// when available so concurrent or newly created calls are not affected by
+  /// stale `initiating`/`ringing` entries left behind from a previous call.
+  ///
+  /// Important: when the message carries a `callID` and the resolved call is
+  /// not present in `_calls` (e.g. the previous call was already hung up and
+  /// removed, and the stale `answer` is arriving in flight) the message is
+  /// dropped entirely. We do NOT fall back to the legacy state-based lookup
+  /// in that case, because doing so would let a stale message for a removed
+  /// call drive the *new* call's state transition - which is the exact
+  /// cross-call contamination this fix is meant to prevent.
+  ///
+  /// Falls back to the legacy "first matching state" lookup only when the
+  /// message has no usable `callID` at all (defensive; matches the legacy
+  /// behaviour for malformed messages).
   void _handleAnswerMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
 
@@ -385,21 +396,32 @@ class CallStateController {
         message.message.inviteParams?.callID ??
             message.message.dialogParams?.callID;
     Call? activeCall;
+
     if (remoteCallId != null && remoteCallId.isNotEmpty) {
-      activeCall = _calls[remoteCallId];
-      // Only honor the socket-driven transition when the resolved call is in a
-      // pre-active state; otherwise drop the message to avoid state drift.
-      if (activeCall != null &&
-          activeCall.currentState != CallState.initiating &&
-          activeCall.currentState != CallState.ringing) {
+      // Targeted lookup: only honor the socket-driven transition when the
+      // resolved call is in a pre-active state. If the call doesn't exist
+      // (already hung up / removed) or is in an incompatible state, drop the
+      // message - do NOT fall back to a state-based lookup.
+      final resolved = _calls[remoteCallId];
+      if (resolved != null &&
+          (resolved.currentState == CallState.initiating ||
+              resolved.currentState == CallState.ringing)) {
+        activeCall = resolved;
+      } else {
+        if (resolved == null) {
+          debugPrint(
+              'CallStateController: ANSWER for unknown callId=$remoteCallId; ignoring. Known callIds: ${_calls.keys.toList()}');
+        }
         activeCall = null;
       }
+    } else {
+      // No callID on the message - fall back to the legacy state-based lookup.
+      activeCall = _calls.values
+          .where((call) =>
+              call.currentState == CallState.initiating ||
+              call.currentState == CallState.ringing)
+          .firstOrNull;
     }
-    activeCall ??= _calls.values
-        .where((call) =>
-            call.currentState == CallState.initiating ||
-            call.currentState == CallState.ringing)
-        .firstOrNull;
 
     if (activeCall != null) {
       // Mark this as a socket-driven state change (priority update)
@@ -434,10 +456,21 @@ class CallStateController {
   /// Handles ringing messages from the socket.
   /// This provides IMMEDIATE state transition to ringing for outgoing calls.
   ///
-  /// Filters by `dialogParams.callID` when available so concurrent or newly
-  /// created calls are not affected by stale `initiating` entries left behind
-  /// from a previous call. Falls back to the legacy "first matching state"
-  /// lookup if the callID is missing (defensive).
+  /// Filters by `inviteParams.callID` (with `dialogParams.callID` as fallback)
+  /// when available so concurrent or newly created calls are not affected by
+  /// stale `initiating` entries left behind from a previous call.
+  ///
+  /// Important: when the message carries a `callID` and the resolved call is
+  /// not present in `_calls` (e.g. the previous call was already hung up and
+  /// removed, and the stale `ringing` is arriving in flight) the message is
+  /// dropped entirely. We do NOT fall back to the legacy state-based lookup
+  /// in that case, because doing so would let a stale message for a removed
+  /// call drive the *new* outgoing call into `ringing` prematurely - which
+  /// is the exact cross-call contamination this fix is meant to prevent.
+  ///
+  /// Falls back to the legacy "first matching state" lookup only when the
+  /// message has no usable `callID` at all (defensive; matches the legacy
+  /// behaviour for malformed messages).
   void _handleRingingMessage(TelnyxMessage message) {
     final timestamp = DateTime.now();
 
@@ -445,18 +478,31 @@ class CallStateController {
         message.message.inviteParams?.callID ??
             message.message.dialogParams?.callID;
     Call? ringingCall;
+
     if (remoteCallId != null && remoteCallId.isNotEmpty) {
-      ringingCall = _calls[remoteCallId];
-      if (ringingCall != null &&
-          (ringingCall.isIncoming ||
-              ringingCall.currentState != CallState.initiating)) {
+      // Targeted lookup: only honor the socket-driven transition when the
+      // resolved call is an outgoing call in `initiating`. If the call
+      // doesn't exist (already hung up / removed) or is in an incompatible
+      // state, drop the message - do NOT fall back to a state-based lookup.
+      final resolved = _calls[remoteCallId];
+      if (resolved != null &&
+          !resolved.isIncoming &&
+          resolved.currentState == CallState.initiating) {
+        ringingCall = resolved;
+      } else {
+        if (resolved == null) {
+          debugPrint(
+              'CallStateController: RINGING for unknown callId=$remoteCallId; ignoring. Known callIds: ${_calls.keys.toList()}');
+        }
         ringingCall = null;
       }
+    } else {
+      // No callID on the message - fall back to the legacy state-based lookup.
+      ringingCall = _calls.values
+          .where((call) =>
+              !call.isIncoming && call.currentState == CallState.initiating)
+          .firstOrNull;
     }
-    ringingCall ??= _calls.values
-        .where((call) =>
-            !call.isIncoming && call.currentState == CallState.initiating)
-        .firstOrNull;
 
     if (ringingCall != null) {
       // Mark this as a socket-driven state change (priority update)
