@@ -373,11 +373,29 @@ class CallStateController {
 
   /// Handles answer messages from the socket.
   /// This provides IMMEDIATE state transition to active when remote party answers.
+  ///
+  /// Filters by `dialogParams.callID` when available so concurrent or newly
+  /// created calls are not affected by stale `initiating`/`ringing` entries
+  /// left behind from a previous call. Falls back to the legacy
+  /// "first matching state" lookup if the callID is missing (defensive).
   void _handleAnswerMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
 
-    // Find the call that was answered and update its state IMMEDIATELY
-    final activeCall = _calls.values
+    final remoteCallId =
+        message.message.inviteParams?.callID ??
+            message.message.dialogParams?.callID;
+    Call? activeCall;
+    if (remoteCallId != null && remoteCallId.isNotEmpty) {
+      activeCall = _calls[remoteCallId];
+      // Only honor the socket-driven transition when the resolved call is in a
+      // pre-active state; otherwise drop the message to avoid state drift.
+      if (activeCall != null &&
+          activeCall.currentState != CallState.initiating &&
+          activeCall.currentState != CallState.ringing) {
+        activeCall = null;
+      }
+    }
+    activeCall ??= _calls.values
         .where((call) =>
             call.currentState == CallState.initiating ||
             call.currentState == CallState.ringing)
@@ -415,11 +433,27 @@ class CallStateController {
 
   /// Handles ringing messages from the socket.
   /// This provides IMMEDIATE state transition to ringing for outgoing calls.
+  ///
+  /// Filters by `dialogParams.callID` when available so concurrent or newly
+  /// created calls are not affected by stale `initiating` entries left behind
+  /// from a previous call. Falls back to the legacy "first matching state"
+  /// lookup if the callID is missing (defensive).
   void _handleRingingMessage(TelnyxMessage message) {
     final timestamp = DateTime.now();
 
-    // Update outgoing calls to ringing state IMMEDIATELY
-    final ringingCall = _calls.values
+    final remoteCallId =
+        message.message.inviteParams?.callID ??
+            message.message.dialogParams?.callID;
+    Call? ringingCall;
+    if (remoteCallId != null && remoteCallId.isNotEmpty) {
+      ringingCall = _calls[remoteCallId];
+      if (ringingCall != null &&
+          (ringingCall.isIncoming ||
+              ringingCall.currentState != CallState.initiating)) {
+        ringingCall = null;
+      }
+    }
+    ringingCall ??= _calls.values
         .where((call) =>
             !call.isIncoming && call.currentState == CallState.initiating)
         .firstOrNull;
@@ -435,6 +469,12 @@ class CallStateController {
 
   /// Handles bye messages from the socket.
   /// This provides IMMEDIATE state transition to ended when call terminates.
+  ///
+  /// Filters by `byeParams.callID` when available so that an incoming bye for
+  /// one call does not accidentally tear down a second, unrelated call (e.g. a
+  /// follow-up outbound call placed right after the previous call was hung up).
+  /// Falls back to "end all non-terminated calls" if the bye message does not
+  /// carry a callID (defensive; matches the legacy behaviour).
   void _handleByeMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
 
@@ -446,15 +486,31 @@ class CallStateController {
     debugPrint(
         'CallStateController: ===============================================================');
 
-    // End all active calls when receiving a bye message IMMEDIATELY
-    for (final call in _calls.values) {
-      if (!call.currentState.isTerminated) {
-        // Mark this as a socket-driven state change (priority update)
+    final remoteCallId = message.message.byeParams?.callID;
+
+    if (remoteCallId != null && remoteCallId.isNotEmpty) {
+      // Targeted bye: end exactly the call that the server told us ended.
+      final call = _calls[remoteCallId];
+      if (call != null && !call.currentState.isTerminated) {
         _lastSocketStateChange[call.callId] = timestamp;
         call.updateState(CallState.ended);
-
         // End CallKit call
         await _callKitManager?.endCall(call.callId);
+      } else if (call == null) {
+        debugPrint(
+            'CallStateController: BYE for unknown callId=$remoteCallId; ignoring. Known callIds: ${_calls.keys.toList()}');
+      }
+    } else {
+      // Fallback: bye message without a callID — end every non-terminated call.
+      for (final call in _calls.values) {
+        if (!call.currentState.isTerminated) {
+          // Mark this as a socket-driven state change (priority update)
+          _lastSocketStateChange[call.callId] = timestamp;
+          call.updateState(CallState.ended);
+
+          // End CallKit call
+          await _callKitManager?.endCall(call.callId);
+        }
       }
     }
 
