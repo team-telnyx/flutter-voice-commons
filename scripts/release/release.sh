@@ -6,6 +6,11 @@
 #   release.sh normalize <version>
 #       Validate <version> (SemVer, optional leading "v") and print version=, tag= and
 #       is_prerelease= lines (also appended to $GITHUB_OUTPUT when set).
+#   release.sh ensure-newer <version>
+#       Fail unless <version> has higher SemVer precedence than the pubspec.yaml version.
+#   release.sh previous-tag <version>
+#       Print the release tag to compare <version> against: the highest SemVer tag below
+#       it, ignoring prerelease tags when <version> is stable.
 #   release.sh bump <version>
 #       Set the pubspec.yaml version.
 #   release.sh check <version>
@@ -69,6 +74,69 @@ cmd_normalize() {
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     echo "$out" >>"$GITHUB_OUTPUT"
   fi
+}
+
+# SemVer 2.0.0 precedence, run with Node (preinstalled on GitHub-hosted runners).
+#   semver gt <a> <b>            exit 0 when a > b
+#   semver previous <version>    read tags on stdin and print the highest one below
+#                                <version>; for a stable <version>, prereleases are skipped
+semver() {
+  node -e '
+    const parse = (v) => {
+      v = v.replace(/^v/, "");
+      const i = v.indexOf("-");
+      return {
+        core: (i < 0 ? v : v.slice(0, i)).split(".").map(Number),
+        pre: i < 0 ? null : v.slice(i + 1).split("."),
+      };
+    };
+    // Numeric identifiers compare as numbers and sort before alphanumeric ones, which
+    // compare as ASCII text (so alpha2 > alpha10, as SemVer requires).
+    const cmpId = (x, y) => {
+      const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+      if (nx && ny) return Number(x) - Number(y);
+      if (nx) return -1;
+      if (ny) return 1;
+      return x < y ? -1 : x > y ? 1 : 0;
+    };
+    const cmp = (a, b) => {
+      for (let i = 0; i < 3; i++) if (a.core[i] !== b.core[i]) return a.core[i] - b.core[i];
+      if (!a.pre || !b.pre) return (a.pre ? -1 : 0) + (b.pre ? 1 : 0);
+      for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+        if (a.pre[i] === undefined) return -1;
+        if (b.pre[i] === undefined) return 1;
+        const c = cmpId(a.pre[i], b.pre[i]);
+        if (c) return c;
+      }
+      return 0;
+    };
+    const [mode, v, w] = process.argv.slice(1);
+    if (mode === "gt") process.exit(cmp(parse(v), parse(w)) > 0 ? 0 : 1);
+    if (mode === "previous") {
+      const target = parse(v);
+      let best = null;
+      for (const tag of require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean)) {
+        const p = parse(tag);
+        if (!target.pre && p.pre) continue;
+        if (cmp(p, target) >= 0) continue;
+        if (best === null || cmp(p, parse(best)) > 0) best = tag;
+      }
+      if (best !== null) console.log(best);
+    }
+  ' "$@"
+}
+
+cmd_ensure_newer() {
+  local version=$1 current
+  current=$(pubspec_version)
+  semver gt "$version" "$current" || fail "$version is not newer than current pubspec version $current"
+}
+
+cmd_previous_tag() {
+  local version=$1 tag
+  git tag --list | while IFS= read -r tag; do
+    if [[ "${tag#v}" =~ $SEMVER_RE ]]; then echo "$tag"; fi
+  done | semver previous "$version"
 }
 
 cmd_bump() {
@@ -184,6 +252,8 @@ command=${1:-}
 shift
 case "$command" in
   normalize) cmd_normalize "${1:?version required}" ;;
+  ensure-newer) cmd_ensure_newer "${1:?version required}" ;;
+  previous-tag) cmd_previous_tag "${1:?version required}" ;;
   bump) cmd_bump "${1:?version required}" ;;
   check) cmd_check "${1:?version required}" ;;
   notes) cmd_notes "${1:?version required}" ;;
