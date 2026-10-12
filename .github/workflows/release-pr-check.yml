@@ -1,0 +1,43 @@
+# Blocks merging a release/X.Y.Z PR until pubspec.yaml and a reviewed CHANGELOG.md
+# section match X.Y.Z, and until the package passes pub.dev's publish validation.
+# Make this a required check on main.
+name: release-pr-check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Release files match version
+    if: startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check pubspec.yaml and CHANGELOG.md
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          VERSION="${BRANCH#release/}"
+          scripts/release/release.sh normalize "$VERSION" >/dev/null
+          scripts/release/release.sh check "$VERSION"
+          echo "pubspec.yaml and CHANGELOG.md are ready for $VERSION"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # The publish workflow's dry run fails on any pub warning (for example a "docs"
+      # directory instead of "doc"), so catch it here instead of at publish time.
+      - name: pub.dev publish dry run
+        run: |
+          flutter pub get
+          flutter pub publish --dry-run

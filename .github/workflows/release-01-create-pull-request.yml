@@ -1,0 +1,204 @@
+# Step 1 of the release flow: creates a telnyx_common release pull request.
+#
+# The PR updates:
+# - pubspec.yaml (version)
+# - CHANGELOG.md, when the COPILOT_PAT secret is set
+#
+# With COPILOT_PAT set, GitHub Copilot drafts the CHANGELOG section from the merged
+# PRs. The draft starts with an <!-- AI-DRAFT --> marker line, and release-pr-check
+# fails until a maintainer reviews the section and deletes that line. Without the
+# secret, or if Copilot fails, the PR is still created and the maintainer writes the
+# section by hand. The merged PR list is always in the PR body.
+#
+# COPILOT_PAT: a fine-grained personal access token with the "Copilot Requests"
+# permission, from an account with a GitHub Copilot license (ideally a bot account).
+#
+# Uses GITHUB_TOKEN. PRs opened with it don't trigger workflows, so CI starts when a
+# maintainer pushes the CHANGELOG commit. Requires the repository setting
+# "Allow GitHub Actions to create and approve pull requests".
+name: release-01-create-pull-request
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'telnyx_common version to release, for example 0.3.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  create_release_pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main with full history and tags
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Normalize version
+        id: release
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: scripts/release/release.sh normalize "$RELEASE_VERSION"
+
+      - name: Ensure release branch, tag and version are new
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "release/$VERSION" >/dev/null; then
+            echo "::error::release/$VERSION already exists; update that PR instead of re-running release-01"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+          CURRENT=$(awk '/^version:/ {print $2; exit}' pubspec.yaml)
+          # dpkg sorts "~" before everything, so 0.3.0~beta.1 < 0.3.0 like SemVer prereleases.
+          if ! dpkg --compare-versions "$(sed 's/-/~/' <<<"$VERSION")" gt "$(sed 's/-/~/' <<<"$CURRENT")"; then
+            echo "::error::$VERSION is not newer than current pubspec version $CURRENT"
+            exit 1
+          fi
+
+      - name: Get previous release tag
+        id: previous_tag
+        run: |
+          set -euo pipefail
+          PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "Previous tag: ${PREVIOUS_TAG:-<none>}"
+
+      - name: Generate release PR notes from merged PRs
+        id: pr_list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous_tag.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+          search_args=()
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            git rev-list "$PREVIOUS_TAG"..HEAD > "$RUNNER_TEMP/commits.txt"
+            search_args=(--search "merged:>=$(git log -1 --format=%cI "$PREVIOUS_TAG")")
+          else
+            git rev-list HEAD > "$RUNNER_TEMP/commits.txt"
+          fi
+
+          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --base main --limit 1000 \
+            "${search_args[@]}" \
+            --json number,title,mergeCommit \
+            --jq '.[] | [.mergeCommit.oid, (.number|tostring), .title] | @tsv' \
+            > "$RUNNER_TEMP/merged_prs.tsv"
+
+          awk -F'\t' 'NR==FNR {in_range[$1]=1; next} ($1 in in_range) {print "- PR #"$2": "$3}' \
+            "$RUNNER_TEMP/commits.txt" "$RUNNER_TEMP/merged_prs.tsv" > "$RUNNER_TEMP/release_notes.md"
+
+          if [[ ! -s "$RUNNER_TEMP/release_notes.md" ]]; then
+            echo "- No merged pull requests detected in this range." > "$RUNNER_TEMP/release_notes.md"
+          fi
+
+          delimiter="EOF_$(openssl rand -hex 8)"
+          {
+            echo "notes<<$delimiter"
+            cat "$RUNNER_TEMP/release_notes.md"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update package version
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: scripts/release/release.sh bump "$VERSION"
+
+      - name: Check for Copilot token
+        id: copilot
+        env:
+          COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
+        run: |
+          if [[ -n "$COPILOT_PAT" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::COPILOT_PAT is not set; skipping the Copilot CHANGELOG draft"
+          fi
+
+      - name: Build CHANGELOG draft prompt
+        if: steps.copilot.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PREVIOUS_TAG: ${{ steps.previous_tag.outputs.previous_tag }}
+        run: scripts/release/release.sh prompt "$VERSION" "$PREVIOUS_TAG" "$RUNNER_TEMP/changelog_prompt.txt"
+
+      - name: Setup Node.js for Copilot CLI
+        if: steps.copilot.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Copilot CLI
+        if: steps.copilot.outputs.enabled == 'true'
+        run: npm install -g @github/copilot@1.0.89
+
+      # Copilot runs without tools, so it can only return text. A failure here never
+      # blocks the release PR; the maintainer writes the section instead.
+      - name: Draft CHANGELOG section with Copilot
+        id: draft
+        if: steps.copilot.outputs.enabled == 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/ai-inference@v3
+        with:
+          prompt-file: ${{ runner.temp }}/changelog_prompt.txt
+          model: gpt-4.1
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+
+      - name: Add CHANGELOG draft
+        id: changelog
+        if: steps.draft.outcome == 'success'
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          DRAFT_FILE: ${{ steps.draft.outputs.response-file }}
+        run: |
+          scripts/release/release.sh insert "$VERSION" "$DRAFT_FILE"
+          echo "drafted=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create release pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ github.token }}
+          commit-message: 'chore: release telnyx_common v${{ steps.release.outputs.version }}'
+          title: 'Release telnyx_common v${{ steps.release.outputs.version }}'
+          body: |
+            Auto-created release PR for `telnyx_common` **v${{ steps.release.outputs.version }}**.
+
+            Target release tag: `${{ steps.release.outputs.tag }}`
+            Previous release tag: `${{ steps.previous_tag.outputs.previous_tag }}`
+
+            ## Merged PRs since previous release
+            ${{ steps.pr_list.outputs.notes }}
+
+            ## Release checklist
+            - [ ] Confirm the version bump in `pubspec.yaml`
+            - [ ] Check whether the `telnyx_webrtc` constraint in `pubspec.yaml` should be raised for this release
+            - [ ] ${{ steps.changelog.outputs.drafted == 'true' && 'Review and edit the Copilot-drafted section in `CHANGELOG.md`, then delete its `<!-- AI-DRAFT ... -->` line (release-pr-check fails until you do)' || 'Add a `## [X.Y.Z](release link) (date)` section to `CHANGELOG.md` (no Copilot draft was added)' }}
+            - [ ] Wait for `release-pr-check` and the other checks. They start when you push to this PR, because PRs opened with `GITHUB_TOKEN` don't trigger workflows.
+            - [ ] After merging, run `release-03-create-gh-release` with version `${{ steps.release.outputs.version }}`. It publishes to pub.dev automatically.
+          branch: release/${{ steps.release.outputs.version }}
+          base: main
+          delete-branch: true
+          add-paths: |
+            pubspec.yaml
+            CHANGELOG.md

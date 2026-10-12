@@ -1,0 +1,49 @@
+# Step 4 of the release flow: publishes telnyx_common to pub.dev from a vX.Y.Z tag.
+#
+# release-03-create-gh-release starts this automatically on the new tag. To run it by
+# hand (for example to retry a failed publish), choose the vX.Y.Z tag, not main, in
+# "Use workflow from"; runs on a branch are skipped. Versions already on pub.dev are
+# skipped, so a retry never fails on "version already exists".
+name: release-04-publish-pub-dev
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  # Started by release-03 on the release tag. Requires "Enable publishing from
+  # workflow_dispatch events" in the pub.dev package admin settings.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check pub.dev for this version
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.pub.outputs.published }}
+    steps:
+      - name: Look up the version on pub.dev
+        id: pub
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/telnyx_common/versions/$VERSION")
+          if [[ "$status" == 200 ]]; then
+            echo "::warning::telnyx_common $VERSION is already on pub.dev; skipping publish"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.published == 'false'
+    permissions:
+      id-token: write # Required for authentication using OIDC
+      contents: read
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
