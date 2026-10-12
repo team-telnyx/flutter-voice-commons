@@ -160,14 +160,47 @@ class TelnyxVoipClient {
   Future<void> login(CredentialConfig config) async {
     if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
 
-    // Store the configuration for push notification handling
-    _storedConfig = config;
-    await ConfigHelper.saveConfig(config);
-
-    // Initialize push notification manager if not already done
+    // Initialize push notification manager if not already done.
+    // This must happen BEFORE login so the push token is available
+    // to inject into the config.
     await _ensurePushNotificationManagerInitialized();
 
-    await _sessionManager.connectWithCredential(config);
+    // Inject the push token into the config if the caller didn't
+    // provide one. Without this, the core SDK sends a login without
+    // pushDeviceToken, and inbound calls won't trigger push
+    // notifications (VSUP-282).
+    final pushToken = currentPushToken;
+    final effectiveConfig = (config.notificationToken == null && pushToken != null)
+        ? CredentialConfig(
+            sipUser: config.sipUser,
+            sipPassword: config.sipPassword,
+            sipCallerIDName: config.sipCallerIDName,
+            sipCallerIDNumber: config.sipCallerIDNumber,
+            notificationToken: pushToken,
+            autoReconnect: config.autoReconnect,
+            logLevel: config.logLevel,
+            debug: config.debug,
+            customLogger: config.customLogger,
+            ringTonePath: config.ringTonePath,
+            ringbackPath: config.ringbackPath,
+            reconnectionTimeout: config.reconnectionTimeout,
+            pushAnswerTimeout: config.pushAnswerTimeout,
+            region: config.region,
+            fallbackOnRegionFailure: config.fallbackOnRegionFailure,
+            forceRelayCandidate: config.forceRelayCandidate,
+            iceServers: config.iceServers,
+            serverConfiguration: config.serverConfiguration,
+            callReportInterval: config.callReportInterval,
+            callReportLogLevel: config.callReportLogLevel,
+            callReportMaxLogEntries: config.callReportMaxLogEntries,
+          )
+        : config;
+
+    // Store the configuration for push notification handling
+    _storedConfig = effectiveConfig;
+    await ConfigHelper.saveConfig(effectiveConfig);
+
+    await _sessionManager.connectWithCredential(effectiveConfig);
   }
 
   /// Connects to the Telnyx platform using token authentication.
@@ -179,14 +212,46 @@ class TelnyxVoipClient {
   Future<void> loginWithToken(TokenConfig config) async {
     if (_disposed) throw StateError('TelnyxVoipClient has been disposed');
 
-    // Store the configuration for push notification handling
-    _storedConfig = config;
-    await ConfigHelper.saveConfig(config);
-
-    // Initialize push notification manager if not already done
+    // Initialize push notification manager if not already done.
+    // This must happen BEFORE login so the push token is available
+    // to inject into the config (VSUP-282).
     await _ensurePushNotificationManagerInitialized();
 
-    await _sessionManager.connectWithToken(config);
+    // Inject the push token into the config if the caller didn't
+    // provide one. Without this, the core SDK sends a login without
+    // pushDeviceToken, and inbound calls won't trigger push
+    // notifications.
+    final pushToken = currentPushToken;
+    final effectiveConfig = (config.notificationToken == null && pushToken != null)
+        ? TokenConfig(
+            sipToken: config.sipToken,
+            sipCallerIDName: config.sipCallerIDName,
+            sipCallerIDNumber: config.sipCallerIDNumber,
+            notificationToken: pushToken,
+            autoReconnect: config.autoReconnect,
+            logLevel: config.logLevel,
+            debug: config.debug,
+            customLogger: config.customLogger,
+            ringTonePath: config.ringTonePath,
+            ringbackPath: config.ringbackPath,
+            reconnectionTimeout: config.reconnectionTimeout,
+            pushAnswerTimeout: config.pushAnswerTimeout,
+            region: config.region,
+            fallbackOnRegionFailure: config.fallbackOnRegionFailure,
+            forceRelayCandidate: config.forceRelayCandidate,
+            iceServers: config.iceServers,
+            serverConfiguration: config.serverConfiguration,
+            callReportInterval: config.callReportInterval,
+            callReportLogLevel: config.callReportLogLevel,
+            callReportMaxLogEntries: config.callReportMaxLogEntries,
+          )
+        : config;
+
+    // Store the configuration for push notification handling
+    _storedConfig = effectiveConfig;
+    await ConfigHelper.saveConfig(effectiveConfig);
+
+    await _sessionManager.connectWithToken(effectiveConfig);
   }
 
   /// Attempts to log in using a configuration stored on the device.
@@ -789,7 +854,75 @@ class TelnyxVoipClient {
   void _handleTokenRefresh(String newToken) {
     debugPrint(
         'TelnyxVoipClient: Push token refreshed: ${newToken.substring(0, 10)}...');
-    // Here you could implement token registration with your backend
+
+    // If we already have a notificationToken in the stored config,
+    // the platform is already registered — nothing to do.
+    if (_storedConfig?.notificationToken != null) {
+      debugPrint('TelnyxVoipClient: Stored config already has notificationToken, skipping re-registration');
+      return;
+    }
+
+    // Token arrived after login (e.g. fresh install where getToken()
+    // returned null). Update the stored config and re-login so the
+    // platform registers the device for push (VSUP-282).
+    debugPrint('TelnyxVoipClient: Updating stored config with new push token and reconnecting');
+
+    if (_storedConfig is CredentialConfig) {
+      final oldConfig = _storedConfig as CredentialConfig;
+      final newConfig = CredentialConfig(
+        sipUser: oldConfig.sipUser,
+        sipPassword: oldConfig.sipPassword,
+        sipCallerIDName: oldConfig.sipCallerIDName,
+        sipCallerIDNumber: oldConfig.sipCallerIDNumber,
+        notificationToken: newToken,
+        autoReconnect: oldConfig.autoReconnect,
+        logLevel: oldConfig.logLevel,
+        debug: oldConfig.debug,
+        customLogger: oldConfig.customLogger,
+        ringTonePath: oldConfig.ringTonePath,
+        ringbackPath: oldConfig.ringbackPath,
+        reconnectionTimeout: oldConfig.reconnectionTimeout,
+        pushAnswerTimeout: oldConfig.pushAnswerTimeout,
+        region: oldConfig.region,
+        fallbackOnRegionFailure: oldConfig.fallbackOnRegionFailure,
+        forceRelayCandidate: oldConfig.forceRelayCandidate,
+        iceServers: oldConfig.iceServers,
+        serverConfiguration: oldConfig.serverConfiguration,
+        callReportInterval: oldConfig.callReportInterval,
+        callReportLogLevel: oldConfig.callReportLogLevel,
+        callReportMaxLogEntries: oldConfig.callReportMaxLogEntries,
+      );
+      _storedConfig = newConfig;
+      ConfigHelper.saveConfig(newConfig);
+      _sessionManager.connectWithCredential(newConfig);
+    } else if (_storedConfig is TokenConfig) {
+      final oldConfig = _storedConfig as TokenConfig;
+      final newConfig = TokenConfig(
+        sipToken: oldConfig.sipToken,
+        sipCallerIDName: oldConfig.sipCallerIDName,
+        sipCallerIDNumber: oldConfig.sipCallerIDNumber,
+        notificationToken: newToken,
+        autoReconnect: oldConfig.autoReconnect,
+        logLevel: oldConfig.logLevel,
+        debug: oldConfig.debug,
+        customLogger: oldConfig.customLogger,
+        ringTonePath: oldConfig.ringTonePath,
+        ringbackPath: oldConfig.ringbackPath,
+        reconnectionTimeout: oldConfig.reconnectionTimeout,
+        pushAnswerTimeout: oldConfig.pushAnswerTimeout,
+        region: oldConfig.region,
+        fallbackOnRegionFailure: oldConfig.fallbackOnRegionFailure,
+        forceRelayCandidate: oldConfig.forceRelayCandidate,
+        iceServers: oldConfig.iceServers,
+        serverConfiguration: oldConfig.serverConfiguration,
+        callReportInterval: oldConfig.callReportInterval,
+        callReportLogLevel: oldConfig.callReportLogLevel,
+        callReportMaxLogEntries: oldConfig.callReportMaxLogEntries,
+      );
+      _storedConfig = newConfig;
+      ConfigHelper.saveConfig(newConfig);
+      _sessionManager.connectWithToken(newConfig);
+    }
   }
 
   /// Retrieves the current push token for the device.
