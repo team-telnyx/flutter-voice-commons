@@ -7,3 +7,5 @@ example/ios/Runner/GeneratedPluginRegistrant.m
 # Sensitive / generated config files
 example/android/app/google-services.json
 example/lib/firebase_options.dart
+# Release tooling, not part of the package
+scripts/
