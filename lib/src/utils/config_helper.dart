@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telnyx_webrtc/config/telnyx_config.dart';
 import 'package:telnyx_webrtc/utils/logging/log_level.dart';
+import 'package:telnyx_common/src/internal/sdk_identity.dart';
 
 /// A helper class to manage loading and saving of Telnyx configuration
 /// from the device's persistent storage.
@@ -86,8 +87,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
-        mobileSdkName: 'flutter_commons',
-        mobileSdkVersion: '0.2.0',
+        mobileSdkName: commonsSdkName,
+        mobileSdkVersion: commonsSdkVersion,
       );
     } else if (sipUser != null && sipPassword != null) {
       print('ConfigHelper: Found stored CredentialConfig.');
@@ -101,8 +102,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
-        mobileSdkName: 'flutter_commons',
-        mobileSdkVersion: '0.2.0',
+        mobileSdkName: commonsSdkName,
+        mobileSdkVersion: commonsSdkVersion,
       );
     }
 

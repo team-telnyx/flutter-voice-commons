@@ -129,10 +129,15 @@ class SessionManager {
       _sipCallerIDName = config.sipCallerIDName;
       _sipCallerIDNumber = config.sipCallerIDNumber;
 
-      // Store the configuration for push notification handling
-      _storedConfig = config;
-
+      // Decorate with the Commons SDK identity before doing anything else, so the
+      // version we persist, send, and report is consistent everywhere downstream.
       final telnyxConfig = withCommonsCredentialIdentity(config);
+
+      // Store the *decorated* config so a subsequent push reconnect (handled by
+      // [connectWithPushMetadata]) carries the Commons SDK identity too.
+      // Persisting the caller-supplied `config` here used to drop the identity on
+      // push reconnects (see PR review P1 #2).
+      _storedConfig = telnyxConfig;
 
       _telnyxClient.connectWithCredential(telnyxConfig);
     } catch (error, stackTrace) {
@@ -151,10 +156,15 @@ class SessionManager {
       _sipCallerIDName = config.sipCallerIDName;
       _sipCallerIDNumber = config.sipCallerIDNumber;
 
-      // Store the configuration for push notification handling
-      _storedConfig = config;
-
+      // Decorate with the Commons SDK identity before doing anything else, so the
+      // version we persist, send, and report is consistent everywhere downstream.
       final telnyxConfig = withCommonsTokenIdentity(config);
+
+      // Store the *decorated* config so a subsequent push reconnect (handled by
+      // [connectWithPushMetadata]) carries the Commons SDK identity too.
+      // Persisting the caller-supplied `config` here used to drop the identity on
+      // push reconnects (see PR review P1 #2).
+      _storedConfig = telnyxConfig;
 
       _telnyxClient.connectWithToken(telnyxConfig);
     } catch (error, stackTrace) {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telnyx_common/src/utils/config_helper.dart';
@@ -28,8 +30,8 @@ void main() {
     ));
 
     for (final config in [credential, token]) {
-      expect(config.effectiveSdkName, 'flutter_commons');
-      expect(config.effectiveSdkVersion, '0.2.0');
+      expect(config.effectiveSdkName, commonsSdkName);
+      expect(config.effectiveSdkVersion, commonsSdkVersion);
     }
   });
 
@@ -44,8 +46,8 @@ void main() {
     ));
 
     final config = await ConfigHelper.getConfig() as CredentialConfig;
-    expect(config.effectiveSdkName, 'flutter_commons');
-    expect(config.effectiveSdkVersion, '0.2.0');
+    expect(config.effectiveSdkName, commonsSdkName);
+    expect(config.effectiveSdkVersion, commonsSdkVersion);
   });
 
   test('stored token config restores Flutter Commons identity', () async {
@@ -58,7 +60,38 @@ void main() {
     ));
 
     final config = await ConfigHelper.getConfig() as TokenConfig;
-    expect(config.effectiveSdkName, 'flutter_commons');
-    expect(config.effectiveSdkVersion, '0.2.0');
+    expect(config.effectiveSdkName, commonsSdkName);
+    expect(config.effectiveSdkVersion, commonsSdkVersion);
+  });
+
+  // Drift guard: commonsSdkVersion must stay in lock-step with the
+  // `version:` field of pubspec.yaml. release.sh `bump` updates both in a
+  // single edit; this test fails the suite if a hand-edit (or a partial
+  // release.sh bump) leaves them out of sync. See sdk_identity.dart for the
+  // full contract.
+  test('commonsSdkVersionPubspecSync', () {
+    final pubspecFile = File('pubspec.yaml');
+    expect(
+      pubspecFile.existsSync(),
+      isTrue,
+      reason: 'pubspec.yaml must exist at the package root for the drift guard',
+    );
+    final pubspecText = pubspecFile.readAsStringSync();
+    final match = RegExp(r'^version:\s*(\S+)\s*$', multiLine: true)
+        .firstMatch(pubspecText);
+    expect(
+      match,
+      isNotNull,
+      reason: 'pubspec.yaml must contain a top-level `version:` field',
+    );
+    final pubspecVersion = match!.group(1)!;
+    expect(
+      commonsSdkVersion,
+      pubspecVersion,
+      reason:
+          'commonsSdkVersion (=$commonsSdkVersion) must equal pubspec.yaml '
+          'version (=$pubspecVersion). Re-run '
+          '`scripts/release/release.sh bump <version>` to update both.',
+    );
   });
 }

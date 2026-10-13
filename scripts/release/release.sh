@@ -144,6 +144,20 @@ cmd_bump() {
   sed -i.bak -E "s/^version: .*/version: $version/" "$PUBSPEC"
   rm -f "$PUBSPEC.bak"
   [[ "$(pubspec_version)" == "$version" ]] || fail "$PUBSPEC version was not updated"
+
+  # Keep `commonsSdkVersion` in lib/src/internal/sdk_identity.dart in lock-step
+  # with pubspec.yaml so the Commons SDK identity carried on the wire matches
+  # the released package version. The drift-guard test
+  # (test/mobile_sdk_identity_test.dart → commonsSdkVersionPubspecSync) fails
+  # the suite if these two ever diverge without going through this script.
+  local sdk_identity_file="lib/src/internal/sdk_identity.dart"
+  if [[ -f "$sdk_identity_file" ]]; then
+    sed -i.bak -E "s/^(const String commonsSdkVersion = ').*(';)$/\1$version\2/" "$sdk_identity_file"
+    rm -f "$sdk_identity_file.bak"
+    if ! grep -qE "^const String commonsSdkVersion = '$version';" "$sdk_identity_file"; then
+      fail "$sdk_identity_file commonsSdkVersion was not updated to $version; expected pattern ^const String commonsSdkVersion = '$version';"
+    fi
+  fi
 }
 
 cmd_check() {
