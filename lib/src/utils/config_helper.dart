@@ -40,7 +40,7 @@ class ConfigHelper {
     if (config.notificationToken != null) {
       await prefs.setString(_notificationTokenKey, config.notificationToken!);
     }
-    
+
     // Save LogLevel and debug flag
     await prefs.setInt(_logLevelKey, config.logLevel.index);
     await prefs.setBool(_debugKey, config.debug);
@@ -64,7 +64,7 @@ class ConfigHelper {
     // ignore: unused_local_variable
     final forceRelayCandidate = prefs.getBool(_forceRelayCandidateKey) ?? false;
     final reconnectionTimeout = prefs.getInt(_reconnectionTimeoutKey);
-    
+
     // Retrieve saved LogLevel and debug values
     final logLevelIndex = prefs.getInt(_logLevelKey) ?? LogLevel.all.index;
     final logLevel = LogLevel.values[logLevelIndex];
@@ -86,6 +86,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
+        mobileSdkName: 'flutter_commons',
+        mobileSdkVersion: '0.2.0',
       );
     } else if (sipUser != null && sipPassword != null) {
       print('ConfigHelper: Found stored CredentialConfig.');
@@ -99,6 +101,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
+        mobileSdkName: 'flutter_commons',
+        mobileSdkVersion: '0.2.0',
       );
     }
 

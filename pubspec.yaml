@@ -13,7 +13,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  telnyx_webrtc: ^4.2.0
+  telnyx_webrtc:
+    git:
+      url: https://github.com/team-telnyx/flutter-voice-sdk.git
+      ref: vsdk-769-sdk-identity-override
+      path: packages/telnyx_webrtc
   flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
   firebase_core: ^4.0.0

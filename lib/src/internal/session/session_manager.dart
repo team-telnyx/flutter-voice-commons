@@ -7,6 +7,7 @@ import 'package:telnyx_webrtc/model/push_notification.dart';
 import 'package:telnyx_webrtc/model/connection_status.dart';
 import 'package:telnyx_webrtc/model/socket_connection_metrics.dart';
 import 'package:telnyx_common/src/models/connection_state.dart';
+import 'package:telnyx_common/src/internal/sdk_identity.dart';
 
 /// Internal component responsible for managing the TelnyxClient connection lifecycle.
 ///
@@ -76,18 +77,19 @@ class SessionManager {
   }
 
   /// Handles push notifications with the stored configuration.
-  void  handlePushNotificationWithConfig(
+  void handlePushNotificationWithConfig(
       PushMetaData pushMetaData, Config config) {
     debugPrint('SessionManager: handlePushNotificationWithConfig called');
     debugPrint('SessionManager: Push metadata: ${pushMetaData.toJson()}');
     debugPrint('SessionManager: Config type: ${config.runtimeType}');
-    
+
     // Prevent duplicate processing if already connected and handling same push
     if (_telnyxClient.isConnected() && _handlingPushNotification) {
-      debugPrint('SessionManager: SKIPPING - Already connected and handling push notification');
+      debugPrint(
+          'SessionManager: SKIPPING - Already connected and handling push notification');
       return;
     }
-    
+
     _handlingPushNotification = true;
 
     try {
@@ -108,7 +110,8 @@ class SessionManager {
           config,
         );
       } else {
-        debugPrint('SessionManager: Unsupported config type: ${config.runtimeType}');
+        debugPrint(
+            'SessionManager: Unsupported config type: ${config.runtimeType}');
       }
     } catch (e) {
       debugPrint('SessionManager: Error handling push notification: $e');
@@ -129,22 +132,7 @@ class SessionManager {
       // Store the configuration for push notification handling
       _storedConfig = config;
 
-      final telnyxConfig = CredentialConfig(
-        sipUser: config.sipUser,
-        sipPassword: config.sipPassword,
-        sipCallerIDName: config.sipCallerIDName,
-        sipCallerIDNumber: config.sipCallerIDNumber,
-        notificationToken: config.notificationToken,
-        autoReconnect: config.autoReconnect,
-        logLevel: config.logLevel,
-        debug: config.debug,
-        customLogger: config.customLogger,
-        ringTonePath: config.ringTonePath,
-        ringbackPath: config.ringbackPath,
-        reconnectionTimeout: config.reconnectionTimeout,
-        region: config.region,
-        fallbackOnRegionFailure: config.fallbackOnRegionFailure,
-      );
+      final telnyxConfig = withCommonsCredentialIdentity(config);
 
       _telnyxClient.connectWithCredential(telnyxConfig);
     } catch (error, stackTrace) {
@@ -166,21 +154,7 @@ class SessionManager {
       // Store the configuration for push notification handling
       _storedConfig = config;
 
-      final telnyxConfig = TokenConfig(
-        sipToken: config.sipToken,
-        sipCallerIDName: config.sipCallerIDName,
-        sipCallerIDNumber: config.sipCallerIDNumber,
-        notificationToken: config.notificationToken,
-        autoReconnect: config.autoReconnect,
-        logLevel: config.logLevel,
-        debug: config.debug,
-        customLogger: config.customLogger,
-        ringTonePath: config.ringTonePath,
-        ringbackPath: config.ringbackPath,
-        reconnectionTimeout: config.reconnectionTimeout,
-        region: config.region,
-        fallbackOnRegionFailure: config.fallbackOnRegionFailure,
-      );
+      final telnyxConfig = withCommonsTokenIdentity(config);
 
       _telnyxClient.connectWithToken(telnyxConfig);
     } catch (error, stackTrace) {
@@ -288,7 +262,8 @@ class SessionManager {
       _currentMetrics = socketMetrics;
       _connectionMetricsController.add(socketMetrics);
 
-      debugPrint('SessionManager: Connection metrics updated - quality: ${socketMetrics.quality}, jitter: ${socketMetrics.jitterMs}ms');
+      debugPrint(
+          'SessionManager: Connection metrics updated - quality: ${socketMetrics.quality}, jitter: ${socketMetrics.jitterMs}ms');
     } catch (e) {
       debugPrint('SessionManager: Error processing connection metrics: $e');
     }
