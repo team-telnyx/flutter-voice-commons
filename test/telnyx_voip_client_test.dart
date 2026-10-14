@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../lib/telnyx_common.dart';
+import '../lib/src/utils/config_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +99,27 @@ void main() {
         expect(config.sipCallerIDNumber, equals('testuser'));
         expect(config.notificationToken, equals('fcmtoken'));
         expect(config.debug, isFalse);
+      });
+
+      test('should preserve missed call notification opt-in in stored config',
+          () async {
+        SharedPreferences.setMockInitialValues({});
+        final config = CredentialConfig(
+          sipUser: 'testuser',
+          sipPassword: 'testpass',
+          sipCallerIDName: 'Test User',
+          sipCallerIDNumber: 'testuser',
+          notificationToken: 'testtoken',
+          logLevel: LogLevel.info,
+          debug: true,
+          enableMissedCallNotifications: true,
+        );
+
+        await ConfigHelper.saveConfig(config);
+        final storedConfig = await ConfigHelper.getConfig();
+
+        expect(storedConfig, isA<CredentialConfig>());
+        expect(storedConfig!.enableMissedCallNotifications, isTrue);
       });
     });
   });
