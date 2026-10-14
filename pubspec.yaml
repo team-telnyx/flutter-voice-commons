@@ -16,7 +16,14 @@ dependencies:
   telnyx_webrtc:
     git:
       url: https://github.com/team-telnyx/flutter-voice-sdk.git
-      ref: vsdk-769-sdk-identity-override
+      # Pinned to the VSDK-769 merge commit on `main`
+      # (`b3c79292 feat(flutter-sdk): emit mobile SDK identity with wrapper override`).
+      # The previous `vsdk-769-sdk-identity-override` branch ref was fragile
+      # (auto-deletion after merge or force-push would break this dep).
+      # This is still a Git dep; Codex P1 #1 ("restore a hosted dependency before
+      # publishing") is deferred until upstream `telnyx_webrtc` ships a release
+      # (>= 4.5.1 / 4.6.0) exposing `Config.mobile_sdk_name`. See VSDK-770.
+      ref: b3c79292a193b2794c55c5cc88c13f9a68947811
       path: packages/telnyx_webrtc
   flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
