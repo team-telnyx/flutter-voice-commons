@@ -13,7 +13,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  telnyx_webrtc: ^4.2.0
+  # VSDK-770: keep this pinned until telnyx_webrtc publishes a release with
+  # Config.mobile_sdk_name, then restore the hosted dependency before release.
+  telnyx_webrtc:
+    git:
+      url: https://github.com/team-telnyx/flutter-voice-sdk.git
+      ref: fix/vsdk-769-wire-identity-v2
+      path: packages/telnyx_webrtc
   flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
   firebase_core: ^4.0.0

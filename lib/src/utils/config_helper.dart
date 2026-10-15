@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telnyx_webrtc/config/telnyx_config.dart';
 import 'package:telnyx_webrtc/utils/logging/log_level.dart';
+import 'package:telnyx_common/src/internal/sdk_identity.dart';
 
 /// A helper class to manage loading and saving of Telnyx configuration
 /// from the device's persistent storage.
@@ -40,7 +41,7 @@ class ConfigHelper {
     if (config.notificationToken != null) {
       await prefs.setString(_notificationTokenKey, config.notificationToken!);
     }
-    
+
     // Save LogLevel and debug flag
     await prefs.setInt(_logLevelKey, config.logLevel.index);
     await prefs.setBool(_debugKey, config.debug);
@@ -64,7 +65,7 @@ class ConfigHelper {
     // ignore: unused_local_variable
     final forceRelayCandidate = prefs.getBool(_forceRelayCandidateKey) ?? false;
     final reconnectionTimeout = prefs.getInt(_reconnectionTimeoutKey);
-    
+
     // Retrieve saved LogLevel and debug values
     final logLevelIndex = prefs.getInt(_logLevelKey) ?? LogLevel.all.index;
     final logLevel = LogLevel.values[logLevelIndex];
@@ -86,6 +87,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
+        mobileSdkName: commonsSdkName,
+        mobileSdkVersion: commonsSdkVersion,
       );
     } else if (sipUser != null && sipPassword != null) {
       print('ConfigHelper: Found stored CredentialConfig.');
@@ -99,6 +102,8 @@ class ConfigHelper {
         debug: debug,
         //forceRelayCandidate: forceRelayCandidate,
         reconnectionTimeout: reconnectionTimeout,
+        mobileSdkName: commonsSdkName,
+        mobileSdkVersion: commonsSdkVersion,
       );
     }
 
