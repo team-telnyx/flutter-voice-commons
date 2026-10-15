@@ -2,12 +2,12 @@ import 'package:telnyx_webrtc/config/telnyx_config.dart';
 
 /// The single source of truth for the SDK identity emitted by telnyx_common.
 ///
-/// This file is the only place in the Commons package where `flutter_commons`
+/// This file is the only place in the Commons package where `webrtc-flutter-commons`
 /// identity literals live. Other call sites (e.g. [ConfigHelper]) MUST import
 /// these constants instead of repeating the literals, so the wire payload,
 /// the cached stored config, and the in-memory reconnect config all agree.
 ///
-const String commonsSdkName = 'flutter_commons';
+const String commonsSdkName = 'webrtc-flutter-commons';
 const String commonsSdkVersion = '0.2.0';
 
 CredentialConfig withCommonsCredentialIdentity(CredentialConfig config) =>
