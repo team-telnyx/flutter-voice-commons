@@ -18,7 +18,7 @@ dependencies:
   # core #350). Pinned to ^4.5.1 so consumers get the wire-contract fix
   # without being forced onto a future major version before they ask.
   telnyx_webrtc: ^4.5.1
-  flutter_callkit_incoming: ^2.5.8
+  flutter_callkit_incoming: ">=2.5.8 <4.0.0"
   uuid: ^4.0.0
   firebase_core: ^4.0.0
   firebase_messaging: ^16.0.0
