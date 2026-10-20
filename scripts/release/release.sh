@@ -144,6 +144,7 @@ cmd_bump() {
   sed -i.bak -E "s/^version: .*/version: $version/" "$PUBSPEC"
   rm -f "$PUBSPEC.bak"
   [[ "$(pubspec_version)" == "$version" ]] || fail "$PUBSPEC version was not updated"
+
 }
 
 cmd_check() {

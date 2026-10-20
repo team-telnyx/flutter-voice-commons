@@ -13,7 +13,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  telnyx_webrtc: ^4.2.0
+  # VSDK-770: telnyx_webrtc 4.5.1 is the first hosted release that ships the
+  # top-level Verto `mobile_sdk_name` / `mobile_sdk_version` identity (Flutter
+  # core #350). Pinned to ^4.5.1 so consumers get the wire-contract fix
+  # without being forced onto a future major version before they ask.
+  telnyx_webrtc: ^4.5.1
   flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
   firebase_core: ^4.0.0
