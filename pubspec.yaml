@@ -13,13 +13,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # VSDK-770: keep this pinned until telnyx_webrtc publishes a release with
-  # Config.mobile_sdk_name, then restore the hosted dependency before release.
-  telnyx_webrtc:
-    git:
-      url: https://github.com/team-telnyx/flutter-voice-sdk.git
-      ref: fix/vsdk-769-wire-identity-v2
-      path: packages/telnyx_webrtc
+  # VSDK-770: telnyx_webrtc 4.5.1 is the first hosted release that ships the
+  # top-level Verto `mobile_sdk_name` / `mobile_sdk_version` identity (Flutter
+  # core #350). Pinned to ^4.5.1 so consumers get the wire-contract fix
+  # without being forced onto a future major version before they ask.
+  telnyx_webrtc: ^4.5.1
   flutter_callkit_incoming: ^2.5.8
   uuid: ^4.0.0
   firebase_core: ^4.0.0
