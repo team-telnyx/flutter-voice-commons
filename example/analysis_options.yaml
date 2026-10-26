@@ -26,3 +26,11 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+# Newer Flutter versions add these excludes during `flutter pub get` if they're missing,
+# which leaves the tree dirty and fails `flutter pub publish --dry-run`.
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
