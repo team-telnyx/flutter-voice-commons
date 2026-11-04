@@ -392,9 +392,8 @@ class CallStateController {
   void _handleAnswerMessage(TelnyxMessage message) async {
     final timestamp = DateTime.now();
 
-    final remoteCallId =
-        message.message.inviteParams?.callID ??
-            message.message.dialogParams?.callID;
+    final remoteCallId = message.message.inviteParams?.callID ??
+        message.message.dialogParams?.callID;
     Call? activeCall;
 
     if (remoteCallId != null && remoteCallId.isNotEmpty) {
@@ -402,7 +401,7 @@ class CallStateController {
       // resolved call is in a pre-active state. If the call doesn't exist
       // (already hung up / removed) or is in an incompatible state, drop the
       // message - do NOT fall back to a state-based lookup.
-      final resolved = _calls[remoteCallId];
+      final resolved = _findCallBySignalingId(remoteCallId);
       if (resolved != null &&
           (resolved.currentState == CallState.initiating ||
               resolved.currentState == CallState.ringing)) {
@@ -453,6 +452,20 @@ class CallStateController {
     }
   }
 
+  /// Resolves wire IDs without changing Commons/CallKit's stable local IDs.
+  /// Outbound core calls generate their own signaling ID; the custom
+  /// X-RTC-CALLID header does not replace it. Read the current association so
+  /// cleanup and reattachment cannot leave stale reverse-map entries behind.
+  Call? _findCallBySignalingId(String signalingId) {
+    for (final entry in _telnyxCalls.entries) {
+      if (entry.value.callId == signalingId) {
+        return _calls[entry.key];
+      }
+    }
+    // Incoming calls can be tracked before the core Call is associated.
+    return _calls[signalingId];
+  }
+
   /// Handles ringing messages from the socket.
   /// This provides IMMEDIATE state transition to ringing for outgoing calls.
   ///
@@ -474,9 +487,8 @@ class CallStateController {
   void _handleRingingMessage(TelnyxMessage message) {
     final timestamp = DateTime.now();
 
-    final remoteCallId =
-        message.message.inviteParams?.callID ??
-            message.message.dialogParams?.callID;
+    final remoteCallId = message.message.inviteParams?.callID ??
+        message.message.dialogParams?.callID;
     Call? ringingCall;
 
     if (remoteCallId != null && remoteCallId.isNotEmpty) {
@@ -484,7 +496,7 @@ class CallStateController {
       // resolved call is an outgoing call in `initiating`. If the call
       // doesn't exist (already hung up / removed) or is in an incompatible
       // state, drop the message - do NOT fall back to a state-based lookup.
-      final resolved = _calls[remoteCallId];
+      final resolved = _findCallBySignalingId(remoteCallId);
       if (resolved != null &&
           !resolved.isIncoming &&
           resolved.currentState == CallState.initiating) {
@@ -536,7 +548,7 @@ class CallStateController {
 
     if (remoteCallId != null && remoteCallId.isNotEmpty) {
       // Targeted bye: end exactly the call that the server told us ended.
-      final call = _calls[remoteCallId];
+      final call = _findCallBySignalingId(remoteCallId);
       if (call != null && !call.currentState.isTerminated) {
         _lastSocketStateChange[call.callId] = timestamp;
         call.updateState(CallState.ended);

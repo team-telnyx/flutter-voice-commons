@@ -600,13 +600,15 @@ The background message handler is crucial for handling incoming calls when the a
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('[Background] Processing push notification: ${message.data}');
-  
-  // Initialize Firebase if needed
-  await Firebase.initializeApp();
-  
+
   // Let TelnyxVoiceApp handle the background processing
-  await TelnyxVoiceApp.handleBackgroundPush(message);
-  
+  // Pass DefaultFirebaseOptions for release builds (Android background isolate
+  // cannot access google-services resources automatically)
+  await TelnyxVoiceApp.handleBackgroundPush(
+    message,
+    firebaseOptions: DefaultFirebaseOptions.currentPlatform,
+  );
+
   print('[Background] Push notification processed');
 }
 ```

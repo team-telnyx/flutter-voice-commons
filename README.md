@@ -194,7 +194,10 @@ void main() async {
 // Background push notification handler
 @pragma('vm:entry-point')
 Future<void> _backgroundHandler(RemoteMessage message) async {
-  await TelnyxVoiceApp.handleBackgroundPush(message);
+  await TelnyxVoiceApp.handleBackgroundPush(
+    message,
+    firebaseOptions: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -391,7 +394,10 @@ The only requirements are:
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // TelnyxVoiceApp handles the actual processing
-  await TelnyxVoiceApp.handleBackgroundPush(message);
+  await TelnyxVoiceApp.handleBackgroundPush(
+    message,
+    firebaseOptions: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 void main() async {

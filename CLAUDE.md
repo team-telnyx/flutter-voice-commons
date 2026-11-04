@@ -153,3 +153,12 @@ client.dispose();
 - Monitor `errorStream` for detailed error information
 - Use `callQualityStream` to monitor call metrics
 - Platform logs available via method channel responses
+## Releasing
+
+Releases go through GitHub Actions; don't bump the version, tag or publish by hand.
+
+1. Run `release-01-create-pull-request` with the new version. It opens a `release/X.Y.Z` PR that bumps `pubspec.yaml` and lists the merged PRs. With the `COPILOT_PAT` secret set, it also adds a Copilot draft of the `CHANGELOG.md` section, marked with an `<!-- AI-DRAFT ... -->` line.
+2. In that PR, write or review the `## [X.Y.Z]` CHANGELOG section and delete any `<!-- AI-DRAFT` line. `release-pr-check` blocks merging until `pubspec.yaml` and `CHANGELOG.md` match the version and `flutter pub publish --dry-run` has no warnings.
+3. Merge, then run `release-03-create-gh-release` with the same version. It tags the release PR's merge commit, creates the GitHub Release from the CHANGELOG section, and starts `release-04-publish-pub-dev`, which publishes to pub.dev. Run release-04 by hand (on the `vX.Y.Z` tag) only to retry a failed publish.
+
+Release helpers live in `scripts/release/release.sh`.

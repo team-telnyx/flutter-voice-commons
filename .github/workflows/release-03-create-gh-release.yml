@@ -1,0 +1,109 @@
+# Step 3 of the release flow: creates the vX.Y.Z tag and GitHub Release for a merged
+# release PR, then starts release-04-publish-pub-dev on the new tag.
+#
+# Run it with the same version given to release-01. It tags the release PR's merge
+# commit (not the current head of main) and uses the CHANGELOG.md section as the
+# release notes.
+#
+# Uses GITHUB_TOKEN. Tags created with it don't trigger the tag-push event of
+# release-04-publish-pub-dev, so this workflow dispatches it on the new tag instead.
+# Requires "Enable publishing from workflow_dispatch events" in the pub.dev package
+# admin settings.
+#
+# Safe to re-run with the same version: a tag already on the release commit and an
+# existing GitHub Release are skipped, and release-04 skips versions already on pub.dev.
+name: release-03-create-gh-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'telnyx_common version to release, for example 0.3.0'
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  create_github_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main with full history and tags
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Normalize version
+        id: release
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: scripts/release/release.sh normalize "$RELEASE_VERSION"
+
+      - name: Check out the release PR merge commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          sha=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "release/$VERSION" \
+            --state merged --json mergeCommit --jq '.[0].mergeCommit.oid // empty')
+          if [[ -z "$sha" ]]; then
+            echo "::error::No merged release/$VERSION PR found. Use the same version given to release-01."
+            exit 1
+          fi
+          git merge-base --is-ancestor "$sha" origin/main \
+            || { echo "::error::Release PR merge commit $sha is not on main"; exit 1; }
+          git checkout --detach "$sha"
+
+      - name: Validate release files and build release notes
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          scripts/release/release.sh check "$VERSION"
+          scripts/release/release.sh notes "$VERSION" > "$RUNNER_TEMP/release_body.md"
+          if tag_sha=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}"); then
+            # A tag on this release commit means an earlier run stopped partway; carry on.
+            if [[ "$tag_sha" != "$(git rev-parse HEAD)" ]]; then
+              echo "::error::Tag $TAG already exists on a different commit ($tag_sha)"
+              exit 1
+            fi
+            echo "::warning::Tag $TAG already exists on this release commit; resuming an earlier run"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::warning::GitHub Release $TAG already exists; skipping"
+            exit 0
+          fi
+          args=("$TAG" --target "$(git rev-parse HEAD)" --title "telnyx_common $VERSION" --notes-file "$RUNNER_TEMP/release_body.md")
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${args[@]}"
+
+      - name: Start pub.dev publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run release-04-publish-pub-dev.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
+          echo "Started release-04-publish-pub-dev on $TAG"
