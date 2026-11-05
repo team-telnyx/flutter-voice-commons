@@ -11,6 +11,7 @@ import 'package:telnyx_common/src/internal/calls/call_state_controller.dart';
 import 'package:telnyx_common/src/internal/push/push_notification_manager.dart';
 import 'package:telnyx_common/src/internal/callkit/callkit_manager.dart';
 import 'package:telnyx_common/src/utils/config_helper.dart';
+import 'package:telnyx_common/src/utils/config_token_copier.dart';
 
 /// The main public interface for the telnyx_common module.
 ///
@@ -36,6 +37,10 @@ class TelnyxVoipClient {
   // Store configuration for push notification handling
   // ignore: unused_field
   Config? _storedConfig;
+
+  /// Set when a token refresh arrives while a session is live; applied on
+  /// the next login (see [_handleTokenRefresh]).
+  String? _pendingPushTokenUpdate;
   // ignore: unused_field
   PushMetaData? _storedPushMetaData;
   // ignore: unused_field
@@ -169,32 +174,14 @@ class TelnyxVoipClient {
     // provide one. Without this, the core SDK sends a login without
     // pushDeviceToken, and inbound calls won't trigger push
     // notifications (VSUP-282).
-    final pushToken = currentPushToken;
-    final effectiveConfig = (config.notificationToken == null && pushToken != null)
-        ? CredentialConfig(
-            sipUser: config.sipUser,
-            sipPassword: config.sipPassword,
-            sipCallerIDName: config.sipCallerIDName,
-            sipCallerIDNumber: config.sipCallerIDNumber,
-            notificationToken: pushToken,
-            autoReconnect: config.autoReconnect,
-            logLevel: config.logLevel,
-            debug: config.debug,
-            customLogger: config.customLogger,
-            ringTonePath: config.ringTonePath,
-            ringbackPath: config.ringbackPath,
-            reconnectionTimeout: config.reconnectionTimeout,
-            pushAnswerTimeout: config.pushAnswerTimeout,
-            region: config.region,
-            fallbackOnRegionFailure: config.fallbackOnRegionFailure,
-            forceRelayCandidate: config.forceRelayCandidate,
-            iceServers: config.iceServers,
-            serverConfiguration: config.serverConfiguration,
-            callReportInterval: config.callReportInterval,
-            callReportLogLevel: config.callReportLogLevel,
-            callReportMaxLogEntries: config.callReportMaxLogEntries,
-          )
-        : config;
+    // A deferred token update (refresh while connected) is applied now: the
+    // deferred token wins over the live provider token for this login.
+    final pushToken = _pendingPushTokenUpdate ?? currentPushToken;
+    _pendingPushTokenUpdate = null;
+    final effectiveConfig =
+        (config.notificationToken == null && pushToken != null)
+            ? credentialConfigWithToken(config, pushToken)
+            : config;
 
     // Store the configuration for push notification handling
     _storedConfig = effectiveConfig;
@@ -221,31 +208,14 @@ class TelnyxVoipClient {
     // provide one. Without this, the core SDK sends a login without
     // pushDeviceToken, and inbound calls won't trigger push
     // notifications.
-    final pushToken = currentPushToken;
-    final effectiveConfig = (config.notificationToken == null && pushToken != null)
-        ? TokenConfig(
-            sipToken: config.sipToken,
-            sipCallerIDName: config.sipCallerIDName,
-            sipCallerIDNumber: config.sipCallerIDNumber,
-            notificationToken: pushToken,
-            autoReconnect: config.autoReconnect,
-            logLevel: config.logLevel,
-            debug: config.debug,
-            customLogger: config.customLogger,
-            ringTonePath: config.ringTonePath,
-            ringbackPath: config.ringbackPath,
-            reconnectionTimeout: config.reconnectionTimeout,
-            pushAnswerTimeout: config.pushAnswerTimeout,
-            region: config.region,
-            fallbackOnRegionFailure: config.fallbackOnRegionFailure,
-            forceRelayCandidate: config.forceRelayCandidate,
-            iceServers: config.iceServers,
-            serverConfiguration: config.serverConfiguration,
-            callReportInterval: config.callReportInterval,
-            callReportLogLevel: config.callReportLogLevel,
-            callReportMaxLogEntries: config.callReportMaxLogEntries,
-          )
-        : config;
+    // A deferred token update (refresh while connected) is applied now: the
+    // deferred token wins over the live provider token for this login.
+    final pushToken = _pendingPushTokenUpdate ?? currentPushToken;
+    _pendingPushTokenUpdate = null;
+    final effectiveConfig =
+        (config.notificationToken == null && pushToken != null)
+            ? tokenConfigWithToken(config, pushToken)
+            : config;
 
     // Store the configuration for push notification handling
     _storedConfig = effectiveConfig;
@@ -850,78 +820,71 @@ class TelnyxVoipClient {
     }
   }
 
+  /// Returns whether the client has an established session.
+  bool get _isSessionConnected => _sessionManager.currentState is Connected;
+
   /// Handles push token refresh.
+  ///
+  /// This callback serves two scenarios:
+  ///  1. The token arrives AFTER login (fresh install where getToken()
+  ///     returned null during login) — re-login with the token so the
+  ///     platform registers the device for push (VSUP-282).
+  ///  2. The platform ROTATES the token (e.g. FCM onTokenRefresh after an
+  ///     app restore or security event) — the rotated token must reach the
+  ///     platform or inbound push silently stops working.
+  /// When the callback fires with the same token that is already stored,
+  /// the platform is already registered and nothing needs to be done.
   void _handleTokenRefresh(String newToken) {
     debugPrint(
         'TelnyxVoipClient: Push token refreshed: ${newToken.substring(0, 10)}...');
 
-    // If we already have a notificationToken in the stored config,
-    // the platform is already registered — nothing to do.
-    if (_storedConfig?.notificationToken != null) {
-      debugPrint('TelnyxVoipClient: Stored config already has notificationToken, skipping re-registration');
+    // Skip ONLY when the stored token is already this exact token — a
+    // non-null token from a previous session must NOT block registering a
+    // rotated one.
+    if (_storedConfig?.notificationToken == newToken) {
+      debugPrint(
+          'TelnyxVoipClient: Stored token unchanged, skipping re-registration');
       return;
     }
 
-    // Token arrived after login (e.g. fresh install where getToken()
-    // returned null). Update the stored config and re-login so the
-    // platform registers the device for push (VSUP-282).
-    debugPrint('TelnyxVoipClient: Updating stored config with new push token and reconnecting');
+    if (_storedConfig == null) {
+      debugPrint('TelnyxVoipClient: No stored config, nothing to re-register');
+      return;
+    }
 
-    if (_storedConfig is CredentialConfig) {
-      final oldConfig = _storedConfig as CredentialConfig;
-      final newConfig = CredentialConfig(
-        sipUser: oldConfig.sipUser,
-        sipPassword: oldConfig.sipPassword,
-        sipCallerIDName: oldConfig.sipCallerIDName,
-        sipCallerIDNumber: oldConfig.sipCallerIDNumber,
-        notificationToken: newToken,
-        autoReconnect: oldConfig.autoReconnect,
-        logLevel: oldConfig.logLevel,
-        debug: oldConfig.debug,
-        customLogger: oldConfig.customLogger,
-        ringTonePath: oldConfig.ringTonePath,
-        ringbackPath: oldConfig.ringbackPath,
-        reconnectionTimeout: oldConfig.reconnectionTimeout,
-        pushAnswerTimeout: oldConfig.pushAnswerTimeout,
-        region: oldConfig.region,
-        fallbackOnRegionFailure: oldConfig.fallbackOnRegionFailure,
-        forceRelayCandidate: oldConfig.forceRelayCandidate,
-        iceServers: oldConfig.iceServers,
-        serverConfiguration: oldConfig.serverConfiguration,
-        callReportInterval: oldConfig.callReportInterval,
-        callReportLogLevel: oldConfig.callReportLogLevel,
-        callReportMaxLogEntries: oldConfig.callReportMaxLogEntries,
-      );
+    if (_isSessionConnected) {
+      // The session is live; disconnecting mid-session would disrupt an
+      // ongoing Verto call. Defer to the next explicit login instead.
+      debugPrint(
+          'TelnyxVoipClient: Session connected, deferring token update to next login');
+      _pendingPushTokenUpdate = newToken;
+      return;
+    }
+
+    final storedConfig = _storedConfig!;
+    if (storedConfig is CredentialConfig) {
+      final newConfig = credentialConfigWithToken(storedConfig, newToken);
+      debugPrint(
+          'TelnyxVoipClient: Updating stored config with new push token and reconnecting');
       _storedConfig = newConfig;
-      ConfigHelper.saveConfig(newConfig);
-      _sessionManager.connectWithCredential(newConfig);
-    } else if (_storedConfig is TokenConfig) {
-      final oldConfig = _storedConfig as TokenConfig;
-      final newConfig = TokenConfig(
-        sipToken: oldConfig.sipToken,
-        sipCallerIDName: oldConfig.sipCallerIDName,
-        sipCallerIDNumber: oldConfig.sipCallerIDNumber,
-        notificationToken: newToken,
-        autoReconnect: oldConfig.autoReconnect,
-        logLevel: oldConfig.logLevel,
-        debug: oldConfig.debug,
-        customLogger: oldConfig.customLogger,
-        ringTonePath: oldConfig.ringTonePath,
-        ringbackPath: oldConfig.ringbackPath,
-        reconnectionTimeout: oldConfig.reconnectionTimeout,
-        pushAnswerTimeout: oldConfig.pushAnswerTimeout,
-        region: oldConfig.region,
-        fallbackOnRegionFailure: oldConfig.fallbackOnRegionFailure,
-        forceRelayCandidate: oldConfig.forceRelayCandidate,
-        iceServers: oldConfig.iceServers,
-        serverConfiguration: oldConfig.serverConfiguration,
-        callReportInterval: oldConfig.callReportInterval,
-        callReportLogLevel: oldConfig.callReportLogLevel,
-        callReportMaxLogEntries: oldConfig.callReportMaxLogEntries,
-      );
+      ConfigHelper.saveConfig(newConfig)
+          .then((_) => _sessionManager.connectWithCredential(newConfig))
+          .catchError((Object error) {
+        debugPrint('TelnyxVoipClient: Token-refresh re-login failed: $error');
+      });
+    } else if (storedConfig is TokenConfig) {
+      final newConfig = tokenConfigWithToken(storedConfig, newToken);
+      debugPrint(
+          'TelnyxVoipClient: Updating stored config with new push token and reconnecting');
       _storedConfig = newConfig;
-      ConfigHelper.saveConfig(newConfig);
-      _sessionManager.connectWithToken(newConfig);
+      ConfigHelper.saveConfig(newConfig)
+          .then((_) => _sessionManager.connectWithToken(newConfig))
+          .catchError((Object error) {
+        debugPrint('TelnyxVoipClient: Token-refresh re-login failed: $error');
+      });
+    } else {
+      debugPrint(
+          'TelnyxVoipClient: Unsupported stored config type ${storedConfig.runtimeType}, skipping token update');
     }
   }
 
