@@ -30,6 +30,49 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
 
+  group('Push-token precedence for login (single decision point)', () {
+    test('deferred refresh wins over caller token and provider token', () {
+      expect(
+        TelnyxVoipClient.resolvePushTokenForLogin(
+          deferredToken: 'deferred-new',
+          callerToken: 'from-config',
+          providerToken: 'live-provider',
+        ),
+        'deferred-new',
+      );
+    });
+
+    test('caller token wins when no deferral is pending', () {
+      expect(
+        TelnyxVoipClient.resolvePushTokenForLogin(
+          deferredToken: null,
+          callerToken: 'from-config',
+          providerToken: 'live-provider',
+        ),
+        'from-config',
+      );
+    });
+
+    test('provider token is the last fallback', () {
+      expect(
+        TelnyxVoipClient.resolvePushTokenForLogin(
+          deferredToken: null,
+          callerToken: null,
+          providerToken: 'live-provider',
+        ),
+        'live-provider',
+      );
+      expect(
+        TelnyxVoipClient.resolvePushTokenForLogin(
+          deferredToken: null,
+          callerToken: null,
+          providerToken: null,
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('Token refresh handling (VSUP-282 review fixes)', () {
     late TelnyxVoipClient client;
     late _FakePushTokenProvider provider;
@@ -45,8 +88,10 @@ void main() {
 
     test('refresh with no stored config does not touch the session', () async {
       final states = <String>[];
-      final sub =
+      final deferredTokens = <String>[];
+      final subState =
           client.connectionState.listen((s) => states.add(s.toString()));
+      final subDeferred = client.onPushTokenDeferred.listen(deferredTokens.add);
 
       // No login happened yet — refresh must be a no-op.
       provider.fireTokenRefresh('token-abc');
@@ -55,13 +100,17 @@ void main() {
       expect(
           client.currentConnectionState.runtimeType.toString(), 'Disconnected');
       expect(states, isEmpty);
-      await sub.cancel();
+      expect(deferredTokens, isEmpty);
+      await subState.cancel();
+      await subDeferred.cancel();
     });
 
     test('refresh with unchanged token is skipped', () async {
       final states = <String>[];
-      final sub =
+      final deferredTokens = <String>[];
+      final subState =
           client.connectionState.listen((s) => states.add(s.toString()));
+      final subDeferred = client.onPushTokenDeferred.listen(deferredTokens.add);
 
       // Store config with the SAME token manually: login() is not usable in
       // unit tests (needs a socket), so simulate the stored state via the
@@ -84,7 +133,9 @@ void main() {
       expect(
           client.currentConnectionState.runtimeType.toString(), 'Disconnected');
       expect(states, isEmpty);
-      await sub.cancel();
+      expect(deferredTokens, isEmpty);
+      await subState.cancel();
+      await subDeferred.cancel();
     });
   });
 }

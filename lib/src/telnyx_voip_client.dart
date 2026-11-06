@@ -41,6 +41,11 @@ class TelnyxVoipClient {
   /// Set when a token refresh arrives while a session is live; applied on
   /// the next login (see [_handleTokenRefresh]).
   String? _pendingPushTokenUpdate;
+
+  /// Broadcasts tokens deferred while a session was live (see
+  /// [onPushTokenDeferred]) so hosts can surface the pending state in their UI.
+  final StreamController<String> _deferredPushTokenController =
+      StreamController<String>.broadcast();
   // ignore: unused_field
   PushMetaData? _storedPushMetaData;
   // ignore: unused_field
@@ -90,6 +95,16 @@ class TelnyxVoipClient {
   /// Listen to this to show connection indicators in your UI.
   Stream<TelnyxConnectionState> get connectionState =>
       _sessionManager.connectionState;
+
+  /// Emits a push token that was refreshed while a session was live and
+  /// therefore deferred to the next [login]/[loginWithToken] (see
+  /// [_handleTokenRefresh]). Hosts should surface this in their UI (e.g. a
+  /// banner) or trigger a controlled re-login when appropriate; the deferred
+  /// token is applied automatically on the next login. The stream is a
+  /// broadcast stream, so multiple listeners are supported and there is no
+  /// buffering — listen before the refresh can occur (e.g. right after
+  /// constructing the client).
+  Stream<String> get onPushTokenDeferred => _deferredPushTokenController.stream;
 
   /// Stream of connection metrics updates.
   ///
@@ -174,14 +189,10 @@ class TelnyxVoipClient {
     // provide one. Without this, the core SDK sends a login without
     // pushDeviceToken, and inbound calls won't trigger push
     // notifications (VSUP-282).
-    // A deferred token update (refresh while connected) is applied now: the
-    // deferred token wins over the live provider token for this login.
-    final pushToken = _pendingPushTokenUpdate ?? currentPushToken;
-    _pendingPushTokenUpdate = null;
-    final effectiveConfig =
-        (config.notificationToken == null && pushToken != null)
-            ? credentialConfigWithToken(config, pushToken)
-            : config;
+    final pushToken = _resolvePushTokenForLogin(config.notificationToken);
+    final effectiveConfig = (pushToken != null)
+        ? credentialConfigWithToken(config, pushToken)
+        : config;
 
     // Store the configuration for push notification handling
     _storedConfig = effectiveConfig;
@@ -208,14 +219,9 @@ class TelnyxVoipClient {
     // provide one. Without this, the core SDK sends a login without
     // pushDeviceToken, and inbound calls won't trigger push
     // notifications.
-    // A deferred token update (refresh while connected) is applied now: the
-    // deferred token wins over the live provider token for this login.
-    final pushToken = _pendingPushTokenUpdate ?? currentPushToken;
-    _pendingPushTokenUpdate = null;
+    final pushToken = _resolvePushTokenForLogin(config.notificationToken);
     final effectiveConfig =
-        (config.notificationToken == null && pushToken != null)
-            ? tokenConfigWithToken(config, pushToken)
-            : config;
+        (pushToken != null) ? tokenConfigWithToken(config, pushToken) : config;
 
     // Store the configuration for push notification handling
     _storedConfig = effectiveConfig;
@@ -260,6 +266,9 @@ class TelnyxVoipClient {
     _storedPushMetaData = null;
     _storedPushPayload = null;
     _waitingForInvite = false;
+    // A deferred token belongs to the ended session; never let it leak into
+    // a future login.
+    _pendingPushTokenUpdate = null;
 
     await _sessionManager.disconnect();
   }
@@ -823,6 +832,28 @@ class TelnyxVoipClient {
   /// Returns whether the client has an established session.
   bool get _isSessionConnected => _sessionManager.currentState is Connected;
 
+  /// Single decision point for which push token a login should register:
+  /// a deferred refresh (received while a session was live) wins over the
+  /// caller-provided token, which in turn wins over the live provider
+  /// token. Consumes any pending deferred update.
+  String? _resolvePushTokenForLogin(String? callerToken) =>
+      resolvePushTokenForLogin(
+        deferredToken: _pendingPushTokenUpdate,
+        callerToken: callerToken,
+        providerToken: currentPushToken,
+      );
+
+  /// Pure precedence rule shared by every login path; exposed for tests
+  /// ([visibleForTesting]) so the rule itself is unit-testable without a
+  /// live socket.
+  @visibleForTesting
+  static String? resolvePushTokenForLogin({
+    required String? deferredToken,
+    required String? callerToken,
+    required String? providerToken,
+  }) =>
+      deferredToken ?? callerToken ?? providerToken;
+
   /// Handles push token refresh.
   ///
   /// This callback serves two scenarios:
@@ -858,6 +889,7 @@ class TelnyxVoipClient {
       debugPrint(
           'TelnyxVoipClient: Session connected, deferring token update to next login');
       _pendingPushTokenUpdate = newToken;
+      _deferredPushTokenController.add(newToken);
       return;
     }
 
@@ -920,11 +952,13 @@ class TelnyxVoipClient {
     _sessionManager.dispose();
     _pushNotificationManager?.dispose();
     _callKitManager?.dispose();
+    _deferredPushTokenController.close();
 
     // Clear stored data
     _storedConfig = null;
     _storedPushMetaData = null;
     _storedPushPayload = null;
     _waitingForInvite = false;
+    _pendingPushTokenUpdate = null;
   }
 }
