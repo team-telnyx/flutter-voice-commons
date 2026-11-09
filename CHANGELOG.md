@@ -1,3 +1,12 @@
+## [0.3.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/v0.3.0) (2026-10-12)
+
+### Enhancement
+- Added an optional `firebaseOptions` parameter to `TelnyxVoiceApp.handleBackgroundPush`. Pass `DefaultFirebaseOptions.currentPlatform` so the Android background isolate can initialize Firebase in release builds. Existing calls without it keep working.
+
+### Bug Fixing
+- Fixed Firebase initialization in the Android background push isolate failing silently in release builds. It's now idempotent, and errors are logged and rethrown instead of swallowed.
+- Fixed repeated CallKit initialization creating duplicate event listeners, which could deliver accept/decline events twice or through a stale callback.
+
 ## [0.2.0](https://github.com/team-telnyx/flutter-voice-commons/releases/tag/0.2.0) (2026-05-04)
 
 ### Enhancement
